@@ -1,0 +1,28 @@
+{
+  "random_motes": false,
+  "random_shades": false,
+  "random_drifters": false,
+  "wind_enabled": false,
+  "motes": [],
+  "shades": [
+    {
+      "id": "S1",
+      "pos": [
+        0,
+        0,
+        9.1
+      ],
+      "state": "wander"
+    }
+  ],
+  "drifters": [],
+  "charms": [],
+  "player": {
+    "pos": [
+      0,
+      3,
+      14
+    ],
+    "carried": 3
+  }
+}

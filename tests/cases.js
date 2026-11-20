@@ -1,4 +1,5 @@
 // Các kịch bản kiểm chứng (Phase 1 đã re-base theo số chuẩn v1.1 + Phase 2). Dùng chung cho `npm test` và `npm run proof`.
+// Phase 3 (Contract v1.2): case gắn [P2→v1.2] là case cũ đã đổi do luật mới (lý do ở docs/notes/regression-p2.md); không case nào bị skip.
 // Mỗi case: yêu cầu (req), night, scenario, inputs, ticks -> check(lines) trả về {ok, detail}.
 // Case Phase 1 có chú thích "[P1→v1.1]": hành vi giữ nguyên, chỉ đổi con số/điểm theo số chuẩn; lý do ghi ở docs/notes/regression-p1.md.
 import { TUNING as T } from '../src/tuning.js';
@@ -79,24 +80,25 @@ export const cases = [
   },
   {
     name: 'deposit_and_light',
-    req: '[P1→v1.1] Nạp đủ lantern_cost=10 thì đèn sáng: deposit + lantern_lit; điểm = 10×10 (đom đóm nạp) + 100 (đèn)',
+    req: '[P2→v1.2] Nạp đủ lantern_cost=10 thì đèn sáng (fuel 100): deposit + lantern_lit(relight:false); điểm = 10×5 (đom đóm nạp) + 100 (thắp lần đầu); sức chứa +2',
     seed: 1, ticks: 30,
     scenario: { ...clean, player: { pos: [0, 0, 24], carried: 10 } },
     inputs: { frames: press(0) },
     check: (L) => {
       const d = events(L, 'deposit')[0], lit = events(L, 'lantern_lit')[0], f = last(L, 'snapshot');
-      return res(d && d.data.amount === 10 && lit && lit.data.lantern_id === 'L1' && f.score === 200 && f.player.carried === 0, `deposit=${J(d?.data)}, lit=${lit?.data.lantern_id}, score=${f.score}`);
+      const l1 = f.lanterns.find((x) => x.id === 'L1');
+      return res(d && d.data.amount === 10 && lit && lit.data.lantern_id === 'L1' && lit.data.relight === false && f.score === 150 && f.player.carried === 0 && f.player.capacity === 12 && l1.fuel > 99 && l1.ever_lit, `deposit=${J(d?.data)}, lit=${lit?.data.lantern_id}, score=${f.score}`);
     },
   },
   {
     name: 'deposit_partial',
-    req: '[P1→v1.1] Nạp thiếu thì đèn chưa sáng, tiến độ được nhớ; +10 điểm mỗi đom đóm nạp',
+    req: '[P2→v1.2] Nạp thiếu thì đèn chưa sáng, tiến độ được nhớ; +5 điểm mỗi đom đóm nạp',
     seed: 1, ticks: 30,
     scenario: { ...clean, player: { pos: [0, 0, 24], carried: 1 } },
     inputs: { frames: press(0) },
     check: (L) => {
       const d = events(L, 'deposit')[0], l1 = last(L, 'snapshot').lanterns.find((x) => x.id === 'L1');
-      return res(d && d.data.deposited === 1 && !l1.lit && last(L, 'snapshot').score === 10 && events(L, 'lantern_lit').length === 0, `deposited=${d?.data.deposited}, lit=${l1.lit}, score=${last(L, 'snapshot').score}`);
+      return res(d && d.data.deposited === 1 && !l1.lit && last(L, 'snapshot').score === 5 && events(L, 'lantern_lit').length === 0, `deposited=${d?.data.deposited}, lit=${l1.lit}, score=${last(L, 'snapshot').score}`);
     },
   },
   {
@@ -258,30 +260,52 @@ export const cases = [
     },
   },
   {
-    name: 'win_all_lit',
-    req: '[P1→v1.1] Thắp hết đèn thì thắng: điểm = 100 + 100 (10 đom đóm) + 2×giây còn lại + 50×lửa còn',
-    seed: 1, ticks: 30, night: 1,
-    scenario: { ...clean, player: { pos: [0, 0, 24], carried: 10, flames: 2 }, time_left_s: 100,
+    name: 'no_early_win',
+    req: '[P2→v1.2, THAY THẾ win_all_lit / win_on_timeout_tick] Không còn thắng sớm: thắp hết 5 đèn khi còn thời gian KHÔNG kết thúc Đêm',
+    seed: 1, ticks: 600, night: 1,
+    scenario: { ...clean, player: { pos: [0, 0, 24], carried: 10, flames: 3 }, time_left_s: 100,
       lanterns: [{ id: 'L2', lit: true }, { id: 'L3', lit: true }, { id: 'L4', lit: true }, { id: 'L5', lit: true }] },
     inputs: { frames: press(0) },
+    check: (L) => { const e = last(L, 'end'); return res(events(L, 'lantern_lit').length === 1 && events(L, 'game_over').length === 0 && e.state === 'playing' && e.ticks === 600 && last(L, 'snapshot').lanterns.every((l) => l.lit), `end=${J(e)}, game_over=${events(L, 'game_over').length}`); },
+  },
+  {
+    name: 'win_dawn_survived',
+    req: 'Thắng: sống tới bình minh với ≥ ceil(0.6×5)=3 đèn sáng; điểm = Σ(50+floor(fuel)) mỗi đèn sáng + 50×lửa; reason dawn_survived',
+    seed: 1, ticks: 300, night: 1,
+    scenario: { ...clean, player: { pos: [0, 0, 0], flames: 3 }, time_left_s: 2, lanterns: [{ id: 'L1', lit: true }, { id: 'L2', lit: true }, { id: 'L3', lit: true }] },
+    inputs: null,
     check: (L) => {
-      const g = events(L, 'game_over')[0], e = last(L, 'end');
-      const expected = 100 + 100 + 2 * 99 + 50 * 2;
-      return res(g && g.data.result === 'won' && e.state === 'won' && e.ticks === 1 && e.score === expected, `game_over=${J(g?.data)}, end=${J(e)}, mong đợi ${expected}`);
+      const g = events(L, 'game_over')[0], e = last(L, 'end'); // 120 tick × 1/60 hao: fuel = 98.0 → floor 98
+      return res(g && g.data.result === 'won' && g.data.reason === 'dawn_survived' && e.ticks === 120 && e.score === 3 * (50 + 98) + 3 * 50, `game_over=${J(g?.data)}, end=${J(e)}, mong đợi ${3 * 148 + 150}`);
     },
   },
   {
-    name: 'win_on_timeout_tick',
-    req: 'Còn sống và tất cả đèn sáng ở đúng tick hết giờ → thắng (không phải dawn)',
-    seed: 1, ticks: 10,
-    scenario: { ...clean, player: { pos: [0, 0, 24], carried: 10 }, time_left_s: 0.05,
-      lanterns: [{ id: 'L2', lit: true }, { id: 'L3', lit: true }, { id: 'L4', lit: true }, { id: 'L5', lit: true }] },
-    inputs: { frames: [{ tick: 2, interact: true }] },
-    check: (L) => { const g = events(L, 'game_over')[0], e = last(L, 'end'); return res(g && g.data.result === 'won' && e.ticks === 3 && e.score === 200 + 50 * 3, `game_over=${J(g?.data)}, end=${J(e)}`); },
+    name: 'dawn_threshold_per_night',
+    req: 'Ngưỡng thắng: Đêm 2 cần 4/6; 3 đèn thì thua (dawn), 4 đèn thì thắng',
+    seed: 1, ticks: 200, night: 2,
+    scenario: { ...clean, time_left_s: 1, lanterns: [{ id: 'L1', lit: true }, { id: 'L2', lit: true }, { id: 'L3', lit: true }] },
+    inputs: null,
+    check: (L) => { const g = events(L, 'game_over')[0]; return res(g && g.data.result === 'lost' && g.data.reason === 'dawn', `3/6 đèn: ${J(g?.data)}`); },
+  },
+  {
+    name: 'dawn_threshold_night2_win',
+    req: 'Đêm 2 với 4/6 đèn sáng lúc bình minh → thắng',
+    seed: 1, ticks: 200, night: 2,
+    scenario: { ...clean, time_left_s: 1, lanterns: [{ id: 'L1', lit: true }, { id: 'L2', lit: true }, { id: 'L3', lit: true }, { id: 'L4', lit: true }] },
+    inputs: null,
+    check: (L) => { const g = events(L, 'game_over')[0]; return res(g && g.data.result === 'won', `4/6 đèn: ${J(g?.data)}`); },
+  },
+  {
+    name: 'dawn_threshold_night3',
+    req: 'Đêm 3 cần 5/7: 4 đèn thua, tick bình minh tính cả đèn vừa hết dầu ở tick cuối',
+    seed: 1, ticks: 200, night: 3,
+    scenario: { ...clean, time_left_s: 1, lanterns: [{ id: 'L1', lit: true }, { id: 'L2', lit: true }, { id: 'L3', lit: true }, { id: 'L4', lit: true }, { id: 'L5', lit: true, fuel: 1 }] },
+    inputs: null,
+    check: (L) => { const g = events(L, 'game_over')[0], out = events(L, 'lantern_out')[0]; return res(g && g.data.result === 'lost' && g.data.reason === 'dawn' && out && out.tick === 60 && g.tick === 60, `lantern_out=${J(out)}, game_over=${J(g)} (L5 hết dầu đúng tick 60 = bình minh → còn 4/7)`); },
   },
   {
     name: 'no_flames_beats_win',
-    req: 'Hết Ngọn Lửa → luôn thua (no_flames) dù tất cả đèn đã sáng',
+    req: 'Hết Ngọn Lửa → luôn thua (no_flames) kể cả khi đủ đèn sáng',
     seed: 1, ticks: 10,
     scenario: { ...clean, player: { pos: [0, 0, 24], carried: 10, flames: 0 }, lanterns: [{ id: 'L2', lit: true }, { id: 'L3', lit: true }, { id: 'L4', lit: true }, { id: 'L5', lit: true }, { id: 'L1', lit: true }] },
     inputs: null,
@@ -303,7 +327,7 @@ export const cases = [
     inputs: { frames: [{ tick: 0, move: [0, 1] }] },
     check: (L) => {
       const s0 = snap(L, 0), e = last(L, 'end'), s100 = snap(L, 100);
-      return res(s0.player.pos[2] === 0 && e.ticks === 100 && s100.sim_tick === 100 && near(s100.time_left_s, 300 - 100 / 60, 0.001), `tick0 z=${s0.player.pos[2]}, end.ticks=${e.ticks}, time_left_s@100=${s100.time_left_s}`);
+      return res(s0.player.pos[2] === 0 && e.ticks === 100 && s100.sim_tick === 100 && near(s100.time_left_s, 240 - 100 / 60, 0.001), `tick0 z=${s0.player.pos[2]}, end.ticks=${e.ticks}, time_left_s@100=${s100.time_left_s}`);
     },
   },
   {
@@ -322,30 +346,30 @@ export const cases = [
   // ================= Phase 2: số chuẩn / bản đồ =================
   {
     name: 'maps_night1_standard',
-    req: 'Đêm 1 — Đảo Bến: xuất phát (0,0,0); 5 đèn đúng tọa độ chuẩn; 330/300 s',
+    req: 'Đêm 1 — Đảo Bến: xuất phát (0,0,0); 5 đèn đúng tọa độ chuẩn; 240 s',
     seed: 1, ticks: 1, scenario: { ...clean }, inputs: null,
     check: (L) => {
       const s = snap(L, 0); const p = s.lanterns.map((l) => l.pos.join(','));
-      return res(s.night === 1 && s.time_left_s === 300 && J(p) === J(['0,0,25', '23.8,0,7.7', '14.7,0,-20.2', '-14.7,0,-20.2', '-23.8,0,7.7']) && J(s.player.pos) === '[0,0,0]' && s.charms.length === 0, `đèn=${p}`);
+      return res(s.night === 1 && s.time_left_s === 240 && J(p) === J(['0,0,25', '23.8,0,7.7', '14.7,0,-20.2', '-14.7,0,-20.2', '-23.8,0,7.7']) && J(s.player.pos) === '[0,0,0]' && s.charms.length === 0, `đèn=${p}`);
     },
   },
   {
     name: 'maps_night2_standard',
-    req: 'Đêm 2 — Đảo Cau: 6 đèn L1..L6 đúng tọa độ, 330 s, Bùa Gió C1 tại (35,0,0)',
+    req: 'Đêm 2 — Đảo Cau: 6 đèn L1..L6 đúng tọa độ, 270 s, Bùa Gió C1 tại (35,0,0)',
     seed: 1, ticks: 1, night: 2, scenario: { random_shades: false, random_drifters: false, motes: [] }, inputs: null,
     check: (L) => {
       const s = snap(L, 0); const p = s.lanterns.map((l) => l.pos.join(','));
-      return res(s.night === 2 && s.time_left_s === 330 && J(p) === J(['0,0,20', '17,0,-10', '-17,0,-10', '70,0,20', '87,0,-10', '53,0,-10']) && J(s.charms.map((c) => [c.id, c.pos.join(',')])) === '[["C1","35,0,0"]]', `đèn=${p}`);
+      return res(s.night === 2 && s.time_left_s === 270 && J(p) === J(['0,0,20', '17,0,-10', '-17,0,-10', '70,0,20', '87,0,-10', '53,0,-10']) && J(s.charms.map((c) => [c.id, c.pos.join(',')])) === '[["C1","35,0,0"]]', `đèn=${p}`);
     },
   },
   {
     name: 'maps_night3_standard',
-    req: 'Đêm 3 — Đảo Chuông: 7 đèn (có đèn ở Y=6 và Y=3), 360 s, 2 Bùa Gió C1,C2, 20 đom đóm đặt trên các tầng 0/3/6',
+    req: 'Đêm 3 — Đảo Chuông: 7 đèn (có đèn ở Y=6 và Y=3), 300 s, 2 Bùa Gió C1,C2, 20 đom đóm đặt trên các tầng 0/3/6',
     seed: 3, ticks: 1, night: 3, scenario: null, inputs: null,
     check: (L) => {
       const s = snap(L, 0); const p = s.lanterns.map((l) => l.pos.join(','));
       const ys = new Set(s.motes.map((m) => m.pos[1]));
-      return res(s.night === 3 && s.time_left_s === 360 && J(p) === J(['0,6,6', '18,3,10', '-18,3,10', '35,0,-10', '-35,0,-10', '20,0,-35', '-20,0,-35']) && s.charms.length === 2 && s.motes_active === 20 && [...ys].every((y) => [0, 3, 6].includes(y)),
+      return res(s.night === 3 && s.time_left_s === 300 && J(p) === J(['0,6,6', '18,3,10', '-18,3,10', '35,0,-10', '-35,0,-10', '20,0,-35', '-20,0,-35']) && s.charms.length === 2 && s.motes_active === 20 && [...ys].every((y) => [0, 3, 6].includes(y)),
         `đèn=${p}, mote y=${[...ys]}`);
     },
   },
@@ -629,9 +653,9 @@ export const cases = [
   },
   {
     name: 'shade_cap_night1',
-    req: 'Tối đa 6 Bóng Mực ở Đêm 1 (chạy trọn một Đêm 18.000 tick)',
-    seed: 5, ticks: 18000, every: 600, scenario: { random_motes: false, motes: [], player: { flames: 999 } }, inputs: null,
-    check: (L) => { const mx = Math.max(...sn(L).map((s) => s.shades.length)); return res(mx === 6 && last(L, 'end').ticks === 18000, `số Bóng lớn nhất = ${mx}`); },
+    req: 'Tối đa 6 Bóng Mực ở Đêm 1 (chạy trọn một Đêm 14.400 tick)',
+    seed: 5, ticks: 14400, every: 600, scenario: { random_motes: false, motes: [], player: { flames: 999 } }, inputs: null,
+    check: (L) => { const mx = Math.max(...sn(L).map((s) => s.shades.length)); return res(mx === 6 && last(L, 'end').ticks === 14400, `số Bóng lớn nhất = ${mx}`); },
   },
   {
     name: 'knockback_stops_at_wall',
@@ -703,6 +727,165 @@ export const cases = [
       const a = snap(L, 1100), b = snap(L, 1200), c = snap(L, 2400), d = snap(L, 3600);
       return res(a.drifters.length === 0 && b.drifters.length === 1 && b.drifters[0].id === 'D1' && c.drifters.length === 2 && d.drifters.length === 2 && J(c.drifters.map((x) => x.id)) === '["D1","D2"]', `@1100=${a.drifters.length}, @1200=${b.drifters.length}, @2400=${c.drifters.length}, @3600=${d.drifters.length}`);
     },
+  },
+
+  // ================= Phase 3: nhiên liệu đèn / Bóng hút dầu / sức chứa =================
+  {
+    name: 'fuel_decay_and_snapshot',
+    req: 'Đèn sáng hao 1.0 fuel/giây (1/60 mỗi tick); snapshot có fuel (1 chữ số thập phân), ever_lit, relit_count; đèn tắt fuel 0',
+    seed: 1, ticks: 600, scenario: { ...clean, lanterns: [{ id: 'L1', lit: true }] }, inputs: null,
+    check: (L) => { const l1 = last(L, 'snapshot').lanterns[0], l2 = last(L, 'snapshot').lanterns[1]; return res(l1.fuel === 90 && l1.ever_lit && l1.relit_count === 0 && l2.fuel === 0 && !l2.ever_lit, `L1=${J(l1)}, L2=${J(l2)}`); },
+  },
+  {
+    name: 'lantern_out_at_zero',
+    req: 'Hết dầu (fuel ≤ 0): đèn tắt, deposited = 0, event lantern_out đúng tick, ever_lit giữ true',
+    seed: 1, ticks: 100, every: 1, scenario: { ...clean, lanterns: [{ id: 'L1', lit: true, fuel: 1, deposited: 10 }] }, inputs: null,
+    check: (L) => { const o = events(L, 'lantern_out'); const a = snap(L, 59).lanterns[0], b = snap(L, 60).lanterns[0]; return res(o.length === 1 && o[0].tick === 60 && a.lit && !b.lit && b.deposited === 0 && b.ever_lit && b.fuel === 0, `lantern_out=${J(o.map((e) => e.tick))}, @59=${J(a)}, @60=${J(b)}`); },
+  },
+  {
+    name: 'refuel_lit_lantern',
+    req: 'Châm dầu: used = min(mang, ceil((100−fuel)/10)); fuel += 10×used (tối đa 100); +5 điểm mỗi đom đóm; event refuel; không đổi sức chứa',
+    seed: 1, ticks: 5, every: 1, scenario: { ...clean, player: { pos: [0, 0, 24], carried: 3 }, lanterns: [{ id: 'L1', lit: true, fuel: 40 }] },
+    inputs: { frames: press(0) },
+    check: (L) => { const r = events(L, 'refuel')[0], f = last(L, 'snapshot'); return res(r && r.data.amount === 3 && r.data.lantern_id === 'L1' && near(r.data.fuel, 70, 0.05) && f.player.carried === 0 && f.score === 15 && f.player.capacity === 10, `refuel=${J(r?.data)}, score=${f.score}`); },
+  },
+  {
+    name: 'refuel_caps_at_100',
+    req: 'Châm dầu không vượt 100 và chỉ dùng đủ số đom đóm cần (fuel 40 → cần ceil(60/10)=7 dù mang 9)',
+    seed: 1, ticks: 5, scenario: { ...clean, player: { pos: [0, 0, 24], carried: 9 }, lanterns: [{ id: 'L1', lit: true, fuel: 40 }] },
+    inputs: { frames: press(0) },
+    check: (L) => { const r = events(L, 'refuel')[0], f = last(L, 'snapshot'); return res(r && r.data.amount === 7 && r.data.fuel === 100 && f.player.carried === 2, `refuel=${J(r?.data)}, carried=${f.player.carried}`); },
+  },
+  {
+    name: 'refuel_selects_nearest_receivable',
+    req: 'Chọn đèn khi tương tác chỉ xét đèn nhận được: đèn tắt hoặc sáng chưa đầy; gần nhất, bằng nhau id nhỏ',
+    seed: 1, ticks: 5, scenario: { ...clean, player: { pos: [0, 0, 0], carried: 4 }, lanterns: [{ id: 'L1', pos: [1.5, 0, 0], lit: true, fuel: 50 }, { id: 'L2', pos: [-1, 0, 0] }, { id: 'L3', pos: [0, 0, 1], lit: true, fuel: 50 }] },
+    inputs: { frames: press(0) },
+    check: (L) => { const r = events(L, 'refuel'), d = events(L, 'deposit'); return res(d.length === 1 && d[0].data.lantern_id === 'L2' && r.length === 0, `deposit=${J(d.map((e) => e.data))}, refuel=${r.length} (L2 gần nhất 1 m, L3 1 m cũng thế nhưng id lớn hơn)`); },
+  },
+  {
+    name: 'relight_cost_5_and_points',
+    req: 'Đèn đã từng sáng (ever_lit) thắp lại chỉ cần 5 đom đóm; +40 điểm (không phải +100) + 5/đom đóm; lantern_lit relight:true; relit_count +1; sức chứa +2',
+    seed: 1, ticks: 5, scenario: { ...clean, player: { pos: [0, 0, 24], carried: 5 }, lanterns: [{ id: 'L1', lit: false, ever_lit: true }] },
+    inputs: { frames: press(0) },
+    check: (L) => { const lit = events(L, 'lantern_lit')[0], f = last(L, 'snapshot'), l1 = f.lanterns[0]; return res(lit && lit.data.relight === true && f.score === 65 && l1.relit_count === 1 && l1.lit && l1.fuel > 99 && f.player.capacity === 12, `lit=${J(lit?.data)}, score=${f.score}`); },
+  },
+  {
+    name: 'never_lit_still_needs_10',
+    req: 'Đèn chưa từng sáng vẫn cần 10: nạp 5 chưa sáng',
+    seed: 1, ticks: 5, scenario: { ...clean, player: { pos: [0, 0, 24], carried: 5 } }, inputs: { frames: press(0) },
+    check: (L) => { const f = last(L, 'snapshot'); return res(events(L, 'lantern_lit').length === 0 && !f.lanterns[0].lit && f.lanterns[0].deposited === 5, `L1=${J(f.lanterns[0])}`); },
+  },
+  {
+    name: 'capacity_grows_and_caps',
+    req: 'Sức chứa = 10 + 2×successful_lights, tối đa 20; đèn đặt sẵn bằng scenario không tính',
+    seed: 1, ticks: 2, scenario: { ...clean, lanterns: [{ id: 'L1', lit: true }] }, inputs: null,
+    check: (L) => { const f = snap(L, 0); return res(f.player.capacity === 10, `capacity với đèn đặt sẵn = ${f.player.capacity}`); },
+  },
+  {
+    name: 'capacity_formula_scenario',
+    req: 'successful_lights=3 → 16; 9 → 20; 12 → vẫn 20',
+    seed: 1, ticks: 1, scenario: { ...clean, player: { successful_lights: 3 } }, inputs: null,
+    check: (L) => res(snap(L, 0).player.capacity === 16, `capacity=${snap(L, 0).player.capacity}`),
+  },
+  {
+    name: 'capacity_max_20',
+    req: 'Sức chứa tối đa 20 (successful_lights=12) và giới hạn nhặt theo sức chứa mới (mang 16/16 không nhặt thêm)',
+    seed: 1, ticks: 5, scenario: { ...clean, player: { successful_lights: 12, carried: 19 }, motes: [[0, 0, 0.5], [0, 0, 0.6]] }, inputs: null,
+    check: (L) => { const f = last(L, 'snapshot'); return res(f.player.capacity === 20 && f.player.carried === 20 && f.motes_active === 1, `capacity=${f.player.capacity}, carried=${f.player.carried}, mote còn ${f.motes_active}`); },
+  },
+  {
+    name: 'low_fuel_loses_safe_zone',
+    req: 'Đèn fuel < 30 mất vùng an toàn: Bóng Mực vào được; đèn fuel 50 thì vẫn chặn',
+    seed: 1, ticks: 400, scenario: { ...clean, player: { pos: [0, 0, 25], flames: 3 }, lanterns: [{ id: 'L1', lit: true, fuel: 20 }], shades: [{ id: 'S1', pos: [15, 0, 25], state: 'chase' }] }, inputs: null,
+    check: (L) => { const h = events(L, 'player_hit'); return res(h.length >= 1, `số lần bị chạm = ${h.length} (Bóng vào vùng của đèn yếu)`); },
+  },
+  {
+    name: 'fuel_exactly_30_keeps_safe_zone',
+    every: 1,
+    req: 'Đúng 30 vẫn còn vùng an toàn (chỉ fuel < 30 mới mất): fuel 30.0 sau tick 1 → Bóng cách đèn 6.0 m bị giữ ở mép; sang tick 2 (29.98) thì vào được',
+    seed: 1, ticks: 3, scenario: { ...clean, player: { pos: [0, 0, 25], flames: 3 }, lanterns: [{ id: 'L1', pos: [0, 0, 25], lit: true, fuel: 1801 / 60 }], shades: [{ id: 'S1', pos: [6, 0, 25], state: 'chase' }] }, inputs: null,
+    check: (L) => { const d = (t) => Math.hypot(snap(L, t).shades[0].pos[0], snap(L, t).shades[0].pos[2] - 25); return res(snap(L, 1).lanterns[0].fuel === 30 && d(1) >= 5.999 && d(2) < 5.99, `fuel@1=${snap(L, 1).lanterns[0].fuel}, d@1=${d(1).toFixed(3)}, d@2=${d(2).toFixed(3)}`); },
+  },
+  {
+    name: 'fuel_50_keeps_safe_zone',
+    req: 'Đèn fuel 50 (≥30) vẫn có vùng an toàn',
+    seed: 1, ticks: 400, scenario: { ...clean, player: { pos: [0, 0, 25], flames: 3 }, lanterns: [{ id: 'L1', lit: true, fuel: 50 }], shades: [{ id: 'S1', pos: [15, 0, 25], state: 'chase' }] }, inputs: null,
+    check: (L) => { let minD = Infinity; for (const s of sn(L)) minD = Math.min(minD, Math.hypot(s.shades[0].pos[0], s.shades[0].pos[2] - 25)); return res(minD >= 5.99 && events(L, 'player_hit').length === 0, `khoảng cách nhỏ nhất ${minD.toFixed(2)}`); },
+  },
+  {
+    name: 'shade_wander_targets_weak_lantern',
+    req: 'Bóng wander đi tới đèn sáng fuel<30 gần nhất (không phải đèn tắt gần hơn); target_lantern_id báo trong snapshot',
+    seed: 1, ticks: 120, every: 20, scenario: { ...clean, player: { pos: [0, 0, 0] }, lanterns: [{ id: 'L1', pos: [0, 0, 30], lit: true, fuel: 20 }, { id: 'L2', pos: [20, 0, 20] }], shades: [{ id: 'S1', pos: [15, 0, 30], state: 'wander' }] }, inputs: null,
+    check: (L) => { const s = snap(L, 60).shades[0]; return res(s.target_lantern_id === 'L1' && s.pos[0] < 15 - 1, `target=${s.target_lantern_id}, pos=${J(s.pos)} (đèn tắt L2 gần hơn nhưng đèn yếu L1 được ưu tiên)`); },
+  },
+  {
+    name: 'shade_wander_goes_to_unlit_when_no_weak',
+    req: 'Không có đèn yếu thì đi về đèn tắt gần nhất',
+    seed: 1, ticks: 60, every: 20, scenario: { ...clean, player: { pos: [0, 0, 0] }, lanterns: [{ id: 'L1', pos: [0, 0, 36] }, { id: 'L2', pos: [20, 0, 25] }], shades: [{ id: 'S1', pos: [15, 0, 30], state: 'wander' }] }, inputs: null,
+    check: (L) => { const s = snap(L, 60).shades[0]; return res(s.target_lantern_id === 'L2', `target=${s.target_lantern_id}`); },
+  },
+  {
+    name: 'shade_drain_cycle',
+    req: 'Bóng wander tới đèn yếu (≤2 m) → drain (đứng yên, hút 5/s cộng với hao 1/s) → fuel_drain mỗi 60 tick → lantern_out → Bóng về wander; deposited=0',
+    seed: 1, ticks: 1200, every: 10, scenario: { ...clean, player: { pos: [0, 0, 0] }, lanterns: [{ id: 'L1', pos: [0, 0, 36], lit: true, fuel: 12 }], shades: [{ id: 'S1', pos: [0, 0, 32], state: 'wander' }] }, inputs: null,
+    check: (L) => {
+      const dr = sn(L).find((x) => x.shades[0]?.state === 'drain'), out = events(L, 'lantern_out')[0], fd = events(L, 'fuel_drain');
+      const after = out && sn(L).find((x) => x.tick >= out.tick + 10);
+      return res(dr && out && fd.length >= 1 && fd[0].data.shade_id === 'S1' && after.shades[0].state === 'wander' && !after.lanterns[0].lit && after.lanterns[0].ever_lit,
+        `drain tại tick ${dr?.tick}, lantern_out tick ${out?.tick}, fuel_drain=${fd.length}, sau đó ${after?.shades[0].state}`);
+    },
+  },
+  {
+    name: 'drain_rate_and_stacking',
+    req: 'Hút 5 fuel/s mỗi con, nhiều con cộng dồn, đèn vẫn tự hao 1/s: 2 con + hao = 11/s',
+    seed: 1, ticks: 60, every: 60, scenario: { ...clean, player: { pos: [0, 0, 0] }, lanterns: [{ id: 'L1', pos: [0, 0, 36], lit: true, fuel: 25 }], shades: [{ id: 'S1', pos: [0, 0, 36.5], state: 'drain', target_lantern_id: 'L1' }, { id: 'S2', pos: [0.5, 0, 36], state: 'drain', target_lantern_id: 'L1' }] }, inputs: null,
+    check: (L) => { const f = snap(L, 60), fd = events(L, 'fuel_drain'); return res(near(f.lanterns[0].fuel, 14, 0.15) && fd.length === 2, `fuel@60=${f.lanterns[0].fuel} (mong đợi 25−11=14), fuel_drain=${fd.length} (mỗi con 1 lần tại tick 60)`); },
+  },
+  {
+    name: 'drain_to_chase_when_player_near',
+    req: 'drain → chase khi Mây vào trong 6 m',
+    seed: 1, ticks: 3, every: 1, scenario: { ...clean, player: { pos: [0, 0, 31], flames: 3 }, lanterns: [{ id: 'L1', pos: [0, 0, 36], lit: true, fuel: 20 }], shades: [{ id: 'S1', pos: [0, 0, 36.5], state: 'drain', target_lantern_id: 'L1' }] }, inputs: null,
+    check: (L) => { const s = snap(L, 1).shades[0]; return res(s.state === 'chase', `state=${s.state}`); },
+  },
+  {
+    name: 'drain_pulse_scores_15_and_returns_to_wander',
+    every: 1,
+    req: 'Tỏa Sáng trúng Bóng đang drain: choáng, tổng +15 điểm (không phải +5); hết choáng thì về wander (không phải chase)',
+    seed: 1, ticks: 200, scenario: { ...clean, player: { pos: [0, 0, 0], carried: 3 }, lanterns: [{ id: 'L1', pos: [0, 0, 36], lit: true, fuel: 90 }], shades: [{ id: 'S1', pos: [0, 0, 4], state: 'drain', target_lantern_id: 'L1' }] }, inputs: { frames: [{ tick: 0, pulse: true }, { tick: 1, pulse: false }, { tick: 2, move: [0, -1] }, { tick: 80, move: [0, 0] }] },
+    check: (L) => { const f1 = snap(L, 1), f = snap(L, 140); return res(f1.score === 15 && f1.shades[0].state === 'stunned' && f.shades[0].state === 'wander', `score@1=${f1.score}, state@1=${f1.shades[0].state}, @140=${f.shades[0].state}`); },
+  },
+  {
+    name: 'drain_to_wander_when_far_from_lantern',
+    req: 'drain → wander nếu cách đèn > 2 m (hoặc đèn không còn sáng / fuel ≥ 30)',
+    seed: 1, ticks: 3, every: 1, scenario: { ...clean, player: { pos: [0, 0, 0] }, lanterns: [{ id: 'L1', pos: [0, 0, 36], lit: true, fuel: 20 }, { id: 'L2', pos: [0, 0, 20], lit: true, fuel: 80 }], shades: [{ id: 'S1', pos: [0, 0, 30], state: 'drain', target_lantern_id: 'L1' }, { id: 'S2', pos: [10, 0, 30], state: 'drain', target_lantern_id: 'L2' }] }, inputs: null,
+    check: (L) => { const f = snap(L, 1); return res(f.shades[0].state === 'wander' && f.shades[1].state === 'wander', `S1=${f.shades[0].state}, S2=${f.shades[1].state}`); },
+  },
+  {
+    name: 'refuel_to_30_ejects_shades_no_damage',
+    every: 1,
+    req: 'Đèn được châm dầu lên ≥30 lúc có Bóng trong vùng 6 m: bị đẩy ra mép trong ≤30 tick và không gây sát thương',
+    seed: 1, ticks: 60, scenario: { ...clean, player: { pos: [0, 0, 24.5], carried: 5, flames: 3 }, lanterns: [{ id: 'L1', pos: [0, 0, 25], lit: true, fuel: 20 }], shades: [{ id: 'S1', pos: [0, 0, 25.6], state: 'chase' }] },
+    inputs: { frames: press(0) },
+    check: (L) => { const f = snap(L, 40), d = Math.hypot(f.shades[0].pos[0], f.shades[0].pos[2] - 25); return res(events(L, 'refuel').length === 1 && d >= 5.99 && events(L, 'player_hit').length === 0, `khoảng cách tới đèn @40=${d.toFixed(2)}, hit=${events(L, 'player_hit').length}`); },
+  },
+  {
+    name: 'no_flames_at_dawn_tick',
+    req: 'Hết Ngọn Lửa luôn thua (no_flames) trước khi xét bình minh, kể cả đủ đèn',
+    seed: 1, ticks: 200, scenario: { ...clean, time_left_s: 1, player: { flames: 1 }, lanterns: [{ id: 'L1', lit: true }, { id: 'L2', lit: true }, { id: 'L3', lit: true }], shades: [{ id: 'S1', pos: [0.5, 0, 0], state: 'chase' }] }, inputs: null,
+    check: (L) => { const g = events(L, 'game_over')[0]; return res(g && g.data.reason === 'no_flames' && g.tick < 60, `game_over=${J(g)}`); },
+  },
+  {
+    name: 'scenario_lit_default_fuel_100',
+    req: 'Scenario đặt lit:true mà không có fuel → fuel mặc định 100; ever_lit tự = true',
+    seed: 1, ticks: 1, scenario: { ...clean, lanterns: [{ id: 'L1', lit: true }, { id: 'L2', fuel: 55, ever_lit: true }] }, inputs: null,
+    check: (L) => { const f = snap(L, 0); return res(f.lanterns[0].fuel === 100 && f.lanterns[0].ever_lit && f.lanterns[1].fuel === 55 && f.lanterns[1].lit, `L1=${J(f.lanterns[0])}, L2=${J(f.lanterns[1])}`); },
+  },
+  {
+    name: 'snapshot_v12_fields',
+    req: 'Contract v1.2: lantern.{fuel,ever_lit,relit_count}, player.capacity, shade.target_lantern_id, trạng thái drain hợp lệ',
+    seed: 1, ticks: 2, scenario: { ...clean, shades: [{ id: 'S1', pos: [20, 0, 20], state: 'drain', target_lantern_id: 'L1' }] }, inputs: null,
+    check: (L) => { const s = snap(L, 0); const miss = []; for (const k of ['fuel', 'ever_lit', 'relit_count']) if (s.lanterns[0][k] === undefined) miss.push('lantern.' + k); if (s.player.capacity === undefined) miss.push('player.capacity'); if (!('target_lantern_id' in s.shades[0])) miss.push('shade.target_lantern_id'); return res(miss.length === 0 && s.shades[0].state === 'drain', `thiếu: ${miss.join(', ') || 'không'}`); },
   },
 
   // ================= Phase 2: tạm dừng =================

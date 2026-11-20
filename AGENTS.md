@@ -15,7 +15,7 @@ Game 3D (Three.js) + lõi mô phỏng headless bằng JavaScript (Node 22). Gi�
 - Kịch bản kiểm chứng ở `tests/cases.js`, dùng chung cho `npm test` và `npm run proof`.
 
 ## Quy tắc
-0. Phạm vi hiện tại = Contract v1.1 (`docs/notes/test-contract-v1.1.md`, spec + AC ở `docs/notes/spec-phase2.md`, giả định ở `assumptions-phase2.md`). **Số chuẩn trong `src/tuning.js` không được tự đổi.**
+0. Phạm vi hiện tại = Contract v1.2 (`docs/notes/test-contract-v1.2.md`, spec + AC ở `docs/notes/spec-phase3.md`, ADR ở `adr-003-fuel-and-dawn.md`, giả định ở `assumptions-phase3.md`; thay đổi phá vỡ ở `CHANGELOG.md`). **Số chuẩn trong `src/tuning.js` không được tự đổi.**
 1. Đọc Test Contract trong `docs/notes/` trước khi đổi output headless. Tọa độ làm tròn 3 số lẻ; dòng cuối là `end`.
 2. Tính tất định: chỉ dùng `g.rng` (mulberry32) cho ngẫu nhiên; **không** `Math.random`, `Date.now` trong `src/sim.js`.
 3. Đổi luật hoặc con số → sửa `src/tuning.js`, chạy `npm run contract`, cập nhật test + `docs/notes/assumptions.md`.
@@ -28,3 +28,4 @@ Game 3D (Three.js) + lõi mô phỏng headless bằng JavaScript (Node 22). Gi�
 - Phase 2: viết test dùng sai mốc tick (sự kiện ghi tick = bước k+1; Bóng recoil/choáng đếm ở bước 2 của tick sau). Khi viết test thời gian, đối chiếu với thứ tự tick bắt buộc trong spec trước.
 - Phase 2: khi lướt giữa lúc bay (bục nhảy) từng làm mất vận tốc dọc → rơi sớm; đã sửa thành giữ vy cũ. Mọi thay đổi vật lý phải kèm case `jump_pad_*`.
 - Chưa có lặp lại lần thứ hai nào khác.
+- Phase 3: dầu đèn là số nguyên đơn vị 1/60 (`fuelU`) — không dùng số thực để so `fuel<30`. Đèn đầy dầu gần như không tương tác được (hao dầu chạy trước tương tác). Mọi luật thắng/thua nằm ở bước 11, `no_flames` xét trước.

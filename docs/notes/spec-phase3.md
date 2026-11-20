@@ -1,0 +1,20 @@
+# Spec Phase 3 — "Đèn cạn dầu" (acceptance criteria, kiểm bằng case trong `tests/cases.js`)
+- **AC-F1** Đèn sáng hao 1.0/s, snapshot có `fuel` (1 chữ số) → `fuel_decay_and_snapshot`, `scenario_lit_default_fuel_100`
+- **AC-F2** Fuel ≤ 0: tắt, `deposited=0`, `lantern_out` đúng tick, `ever_lit` giữ → `lantern_out_at_zero`
+- **AC-F3** Châm dầu `used=min(mang, ceil((100−fuel)/10))`, +5 điểm/đom đóm, event `refuel`, không quá 100 → `refuel_lit_lantern`, `refuel_caps_at_100`
+- **AC-F4** Chọn đèn chỉ xét đèn nhận được, gần nhất, id nhỏ → `refuel_selects_nearest_receivable`, `interact_tie_smaller_id`
+- **AC-F5** Thắp lại 5 đom đóm, +40, `relight:true`, `relit_count`; chưa từng sáng vẫn 10 → `relight_cost_5_and_points`, `never_lit_still_needs_10`
+- **AC-Z1** fuel<30 mất vùng; đúng 30 còn; fuel 50 còn → `low_fuel_loses_safe_zone`, `fuel_exactly_30_keeps_safe_zone`, `fuel_50_keeps_safe_zone`
+- **AC-D1** `wander` đi tới đèn yếu → đèn tắt gần nhất → `shade_wander_targets_weak_lantern`, `shade_wander_goes_to_unlit_when_no_weak`
+- **AC-D2** ≤2 m → `drain`, hút 5/s cộng dồn, `fuel_drain` mỗi 60 tick → `shade_drain_cycle`, `drain_rate_and_stacking`
+- **AC-D3** Chuyển trạng thái `drain→chase/stunned/wander`; Tỏa Sáng lúc drain tổng +15; hết choáng → wander → `drain_to_chase_when_player_near`, `drain_pulse_scores_15_and_returns_to_wander`, `drain_to_wander_when_far_from_lantern`
+- **AC-D4** Châm dầu lên ≥30 đẩy Bóng trong 6 m ra ≤30 tick, không sát thương → `refuel_to_30_ejects_shades_no_damage`
+- **AC-W1** Không thắng sớm → `no_early_win`
+- **AC-W2** Thắng khi sống tới bình minh với ≥ceil(0.6×đèn) đèn; điểm bình minh; ngưỡng 3/5, 4/6, 5/7 → `win_dawn_survived`, `dawn_threshold_per_night`, `dawn_threshold_night2_win`, `dawn_threshold_night3`
+- **AC-W3** Hết Ngọn Lửa luôn thua `no_flames` trước → `no_flames_beats_win`, `no_flames_at_dawn_tick`
+- **AC-W4** Thời lượng 240/270/300 → `maps_night*_standard`, `tick_model`, `contract.test.js`
+- **AC-C1** Sức chứa `min(20, 10+2×lần thắp)`, đặt sẵn không tính → `capacity_*`, `deposit_and_light`
+- **AC-S1** Điểm mới (+5, +100, +40, +5/+15, bình minh) → các case trên; thưởng thời gian bỏ (`per_second_left=0`)
+- **AC-X1** Snapshot/scenario/event v1.2 → `snapshot_v12_fields`, `contract.test.js`, các test sai định dạng
+- **AC-G1 (GUI)** Thanh dầu trên đèn; fuel<30 nhấp nháy 1 Hz; HUD sức chứa x/cap; mục tiêu "giữ ≥n đèn tới bình minh" hiển thị; Bóng `drain` nhìn thấy được
+- **AC-G2 (GUI)** Cài đặt "Bảng màu dễ phân biệt" (lưu): viền/mắt Bóng #00B3FF, cảnh báo UI #FFFFFF + ⚠; đèn tắt xẹp 20% + vết rách; đèn sắp hết dầu nhấp nháy

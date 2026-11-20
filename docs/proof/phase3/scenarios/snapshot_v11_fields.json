@@ -1,0 +1,14 @@
+{
+  "random_shades": false,
+  "random_drifters": false,
+  "drifters": [
+    {
+      "id": "D1",
+      "pos": [
+        5,
+        2,
+        5
+      ]
+    }
+  ]
+}

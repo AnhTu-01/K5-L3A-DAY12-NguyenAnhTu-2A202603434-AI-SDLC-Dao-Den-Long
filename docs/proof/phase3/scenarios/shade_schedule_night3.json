@@ -1,0 +1,8 @@
+{
+  "random_motes": false,
+  "motes": [],
+  "wind_enabled": false,
+  "player": {
+    "flames": 99
+  }
+}
