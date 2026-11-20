@@ -4,11 +4,11 @@
 ## Evaluation của 4 phase
 | Phase | Nội dung | Evaluation / điểm |
 |---|---|---|
-| 1 | Lõi tất định + headless + game 3D (Đêm 1) | _(điền điểm/nhận xét từ bảng lab)_ |
-| 2 | Ba hòn đảo, lướt, Gió Lạc, gió, rơi đảo (Contract v1.1) | _(điền)_ |
-| 3 | Đèn có dầu, luật sống tới bình minh (v1.2) | _(điền)_ |
-| 4 | Benchmark, soak, bảng xếp hạng, dễ tiếp cận, phát hành (v1.3) | _(điền)_ |
-Số liệu tự đo của tôi (không phải điểm chấm): `npm test` 133 test đạt; soak 10 Đêm 0 crash, heap JS phẳng 4,0 MB sau 200 Đêm; bench trên máy tôi _(điền từ bench.json)_.
+| 1 | Lõi tất định + headless + game 3D (Đêm 1) | chưa có điểm chính thức; tự đánh giá: test và bằng chứng đạt, người chơi xác nhận game chạy ổn |
+| 2 | Ba hòn đảo, lướt, Gió Lạc, gió, rơi đảo (Contract v1.1) | chưa có điểm chính thức; tự đánh giá: test và bằng chứng đạt, người chơi xác nhận ổn |
+| 3 | Đèn có dầu, luật sống tới bình minh (v1.2) | chưa có điểm chính thức; tự đánh giá: test và bằng chứng đạt, người chơi xác nhận ổn |
+| 4 | Benchmark, soak, bảng xếp hạng, dễ tiếp cận, phát hành (v1.3) | chưa có điểm chính thức; tự đánh giá: test và bằng chứng đạt, người chơi xác nhận ổn |
+Số liệu tự đo của tôi (không phải điểm chấm): `npm test` 133 test đạt; soak 10 Đêm 0 crash, heap JS phẳng 4,0 MB sau 200 Đêm; FPS thật xem `bench.json` trong repo (đo trên máy tác giả).
 
 ## Điều gì hiệu quả
 - **Một nguồn sự thật cho luật:** `src/sim.js` chạy ở cả headless (Node) lẫn game 3D, nên mọi test headless cũng là test của game thật. Tách luật khỏi đồ họa là quyết định đúng nhất của dự án.
@@ -36,7 +36,7 @@ Số liệu tự đo của tôi (không phải điểm chấm): `npm test` 133 t
 - Ít hữu ích hơn tôi nghĩ: ghi chú dài; chỉ những dòng khiến AI tránh được một lỗi cụ thể mới đáng giữ.
 
 ## Token / chi phí AI và cách tiết kiệm
-- Tổng token và chi phí: _(điền số thật từ phần sử dụng của claude.ai, hoặc ghi "không biết" — tôi không đo được từ trong cuộc trò chuyện nên không bịa số)_.
+- Tổng token và chi phí: **Không biết** — tôi không đo được token từ trong cuộc trò chuyện nên không bịa số. Có thể xem ở phần sử dụng của tài khoản claude.ai..
 - Cách tiết kiệm đã dùng: giữ `AGENTS.md` ngắn; viết kịch bản kiểm chứng (rẻ, chạy bằng `npm test`) thay vì nhờ AI "tự xác nhận"; gửi cả zip hoàn chỉnh thay vì dán từng đoạn mã qua lại; tái dùng một bộ case cho cả test và proof; không sinh lại tài liệu khi luật không đổi.
 
 ## Nếu làm lại

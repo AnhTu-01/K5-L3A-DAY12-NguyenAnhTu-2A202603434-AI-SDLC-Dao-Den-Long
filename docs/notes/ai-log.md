@@ -7,24 +7,24 @@
 - **Lần AI sai / điều cần cẩn thận:**
   - Lần chạy test đầu tiên `node --test tests/` báo lỗi vì Node 22 coi thư mục là module → đổi thành glob `tests/*.test.js`.
   - Cảnh 3D ban đầu quá tối so với "đêm ấm áp" → chỉnh ánh sáng sau khi xem ảnh chụp.
-- **Token / chi phí ước tính:** *(tự điền số thật của bạn từ công cụ đang dùng; để trống nếu không biết, không bịa)*.
+- **Token / chi phí ước tính:** không biết (không đo được token trong cuộc trò chuyện; không bịa số).
 - **Cách tiết kiệm:** giữ AGENTS.md ngắn; viết kịch bản kiểm chứng trước khi sửa luật; chạy `npm test` (rẻ) thay vì nhờ agent "tự xác nhận".
 
 ## Phase 2
 - **Công cụ:** Claude (claude.ai) như Phase 1. Đọc TICKET-02, viết lại `src/sim.js` theo thứ tự tick bắt buộc, tách bản đồ ra `src/maps.js`.
 - **Quy trình:** (1) liệt kê mọi chỗ mơ hồ → `assumptions-phase2.md`; (2) viết spec + AC từng tính năng (`spec-phase2.md`); (3) mỗi tính năng ≥1 case headless (72 case); (4) phá thử 13 chỗ trong `sim.js` (mutation) để chắc case đỏ; (5) hồi quy Phase 1 ghi ở `regression-p1.md`.
 - **Lần AI sai:** test lướt/bục nhảy đầu tiên cho thấy lướt lúc đang bay làm mất vận tốc dọc (đáp ngoài đảo) → sửa luật giữ vy. Vài mốc tick trong test viết sai 1 tick so với thứ tự xử lý → sửa test sau khi đối chiếu spec (không sửa code cho vừa test).
-- **Token / chi phí:** *(tự điền số thật hoặc ghi "không biết")*.
+- **Token / chi phí:** không biết (không đo được token trong cuộc trò chuyện; không bịa số).
 
 ## Phase 3
 - **Công cụ:** Claude (claude.ai) như các Phase trước. Đọc TICKET-03, thêm mô hình dầu đèn vào `src/sim.js`, đổi luật thắng sang "sống tới bình minh".
 - **Quy trình:** (1) ADR-003 + spec-phase3 (AC) + assumptions-phase3; (2) 99 case dùng chung cho `npm test` và `npm run proof`; (3) hồi quy Phase 2 ghi ở `regression-p2.md`; (4) mutation: phá luật dầu/ngưỡng 30/drain/ngưỡng thắng, case phải đỏ.
 - **Lần AI sai:** hai mutant sống sót ban đầu (`fuel > ngưỡng` và nhánh hết recoil → chase) → thêm case `fuel_exactly_30_keeps_safe_zone` và siết test Tỏa Sáng khi drain. Một mutant tương đương (đèn đầy dầu không chọn được) được ghi ở ADR vì không thể quan sát.
-- **Token / chi phí:** *(tự điền số thật hoặc ghi "không biết")*.
+- **Token / chi phí:** không biết (không đo được token trong cuộc trò chuyện; không bịa số).
 
 ## Phase 4
 - **Công cụ:** Claude (claude.ai) như các Phase trước. Đọc TICKET-04, thêm cờ `bench` vào `sim.js`, viết `scripts/bench.js` / `soak.js` / `proof4.js` / `make-release.js`, logic thuần (`keybinds`, `leaderboard-core`, `bench-scene`, `soak-input`) tách khỏi giao diện để test bằng `node --test`.
 - **Quy trình:** (1) giả định → `assumptions-phase4.md` (23 điểm); (2) AC → `spec-phase4.md`; (3) 24 test mới (tổng 133); (4) mutation 15 chỗ (bẻ thứ tự hòa điểm, giới hạn top 10, độ dài tên, chiều camera, `ceil(1%N)`, các cờ bench, phím cố định, tần suất soak) → test phải đỏ; 3 mutant sống sót ban đầu nên bổ sung test; (5) trình duyệt thật (playwright + Chrome) cho đổi phím, quét cỡ chữ, bảng xếp hạng.
 - **Lần AI sai:** (a) tưởng soak rò rỉ vì RSS tăng 1,6× → đo heap phẳng, nguyên nhân JIT; (b) khung Cài đặt bị cắt đầu trang (chỉ thấy khi xem ảnh chụp); (c) chữ phụ trong lưới phím vẫn 16 px (quét DOM mới thấy).
 - **Chưa tự kiểm được:** FPS thật (sandbox không có GPU), rung camera/chớp màn hình khi bị chạm; để người chơi điền ở `docs/proof/phase4/GUI.md`.
-- **Token / chi phí:** *(tự điền số thật hoặc ghi "không biết")*.
+- **Token / chi phí:** không biết (không đo được token trong cuộc trò chuyện; không bịa số).
