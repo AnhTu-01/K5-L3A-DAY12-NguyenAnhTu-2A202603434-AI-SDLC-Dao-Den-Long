@@ -1,5 +1,5 @@
-// Sinh bằng chứng Phase 1: chạy từng kịch bản qua CHẾ ĐỘ HEADLESS THẬT (CLI), lưu scenario/inputs/output
-// và kết quả kiểm tra vào docs/proof/phase1/. Không sửa tay các file này; chạy lại bằng `npm run proof`.
+// Sinh bằng chứng Phase 2: chạy từng kịch bản qua CHẾ ĐỘ HEADLESS THẬT (CLI), lưu scenario/inputs/output
+// và kết quả kiểm tra vào docs/proof/phase2/. Không sửa tay các file này; chạy lại bằng `npm run proof`.
 import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
@@ -8,9 +8,10 @@ import crypto from 'node:crypto';
 import { cases } from '../tests/cases.js';
 
 const root = path.resolve(path.dirname(new URL(import.meta.url).pathname), '..');
-const dir = path.join(root, 'docs', 'proof', 'phase1');
+const dir = path.join(root, 'docs', 'proof', 'phase2');
 // Chỉ xóa phần tự sinh; GUI.md và ảnh chụp là ghi chú tay (chơi thử thật) nên giữ nguyên.
 for (const sub of ['scenarios', 'inputs', 'outputs']) { fs.rmSync(path.join(dir, sub), { recursive: true, force: true }); fs.mkdirSync(path.join(dir, sub), { recursive: true }); }
+fs.mkdirSync(dir, { recursive: true });
 fs.rmSync(path.join(dir, 'RESULTS.md'), { force: true });
 
 const gitHead = spawnSync('git', ['rev-parse', '--short', 'HEAD'], { cwd: root, encoding: 'utf8' }).stdout.trim() || '(chưa commit)';
@@ -18,7 +19,8 @@ const rows = [];
 let failed = 0;
 
 function run(c) {
-  const args = ['src/headless.js', '--seed', String(c.seed), '--night', '1', '--ticks', String(c.ticks), '--out', path.join(dir, 'outputs', c.name + '.jsonl')];
+  const args = ['src/headless.js', '--seed', String(c.seed), '--night', String(c.night || 1), '--ticks', String(c.ticks), '--out', path.join(dir, 'outputs', c.name + '.jsonl')];
+  if (c.every) args.push('--snapshot-every', String(c.every));
   if (c.scenario) { const f = path.join(dir, 'scenarios', c.name + '.json'); fs.writeFileSync(f, JSON.stringify(c.scenario, null, 2) + '\n'); args.push('--scenario', f); }
   if (c.inputs) { const f = path.join(dir, 'inputs', c.name + '.json'); fs.writeFileSync(f, JSON.stringify(c.inputs, null, 2) + '\n'); args.push('--inputs', f); }
   const r = spawnSync('node', args, { cwd: root, encoding: 'utf8' });
@@ -36,7 +38,7 @@ for (const c of cases) {
 }
 
 // Kiểm tra tính tất định bằng băm SHA-256 của hai lần chạy
-const det = cases.find((x) => x.name === 'random_world_spawns');
+const det = cases.find((x) => x.name === 'random_world_night1');
 const hashes = [0, 1].map((i) => {
   const out = path.join(os.tmpdir(), `det-${i}.jsonl`);
   const f = path.join(dir, 'inputs', 'determinism.json');
@@ -55,7 +57,7 @@ const exitOk = rc.status === 2;
 if (!exitOk) failed++;
 
 const md = [];
-md.push('# Bằng chứng Phase 1 (tự sinh, không sửa tay)');
+md.push('# Bằng chứng Phase 2 (Contract v1.1) (tự sinh, không sửa tay)');
 md.push('');
 md.push(`- Sinh bởi: \`npm run proof\` (scripts/proof.js)`);
 md.push(`- Commit lúc sinh: \`${gitHead}\` · Node ${process.version} · ${os.platform()} ${os.arch()}`);
@@ -70,7 +72,7 @@ md.push('');
 md.push('## Chưa đạt / chưa kiểm chứng được');
 md.push('');
 md.push(failed ? `Có ${failed} mục chưa đạt ở bảng trên (xem cột Kết quả).` : '- Không có mục headless nào chưa đạt ở lần chạy này.');
-md.push('- Phần hiển thị 3D, HUD và cảm giác chơi **không** kiểm bằng headless: xem `docs/proof/phase1/GUI.md` (ghi chú chơi thử) để biết mục nào đã/chưa kiểm.');
+md.push('- Phần hiển thị 3D, HUD và cảm giác chơi **không** kiểm bằng headless: xem `docs/proof/phase2/GUI.md` (ghi chú chơi thử) để biết mục nào đã/chưa kiểm.');
 md.push('');
 fs.writeFileSync(path.join(dir, 'RESULTS.md'), md.join('\n'));
 console.log(md.slice(5, 5 + rows.length + 5).join('\n'));

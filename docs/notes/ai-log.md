@@ -9,3 +9,9 @@
   - Cảnh 3D ban đầu quá tối so với "đêm ấm áp" → chỉnh ánh sáng sau khi xem ảnh chụp.
 - **Token / chi phí ước tính:** *(tự điền số thật của bạn từ công cụ đang dùng; để trống nếu không biết, không bịa)*.
 - **Cách tiết kiệm:** giữ AGENTS.md ngắn; viết kịch bản kiểm chứng trước khi sửa luật; chạy `npm test` (rẻ) thay vì nhờ agent "tự xác nhận".
+
+## Phase 2
+- **Công cụ:** Claude (claude.ai) như Phase 1. Đọc TICKET-02, viết lại `src/sim.js` theo thứ tự tick bắt buộc, tách bản đồ ra `src/maps.js`.
+- **Quy trình:** (1) liệt kê mọi chỗ mơ hồ → `assumptions-phase2.md`; (2) viết spec + AC từng tính năng (`spec-phase2.md`); (3) mỗi tính năng ≥1 case headless (72 case); (4) phá thử 13 chỗ trong `sim.js` (mutation) để chắc case đỏ; (5) hồi quy Phase 1 ghi ở `regression-p1.md`.
+- **Lần AI sai:** test lướt/bục nhảy đầu tiên cho thấy lướt lúc đang bay làm mất vận tốc dọc (đáp ngoài đảo) → sửa luật giữ vy. Vài mốc tick trong test viết sai 1 tick so với thứ tự xử lý → sửa test sau khi đối chiếu spec (không sửa code cho vừa test).
+- **Token / chi phí:** *(tự điền số thật hoặc ghi "không biết")*.

@@ -6,37 +6,96 @@
 <title>Đảo Đèn Lồng</title>
 <link rel="icon" href="data:,">
 <style>
-  html, body { margin: 0; height: 100%; overflow: hidden; background: #120a22; font-family: "Trebuchet MS", system-ui, sans-serif; color: #ffe9b8; }
-  canvas { display: block; }
-  #hud { position: fixed; top: 12px; left: 12px; right: 12px; display: flex; gap: 10px; flex-wrap: wrap; pointer-events: none; }
-  .chip { background: rgba(30, 14, 50, .72); border: 1px solid rgba(255, 190, 90, .5); border-radius: 14px; padding: 6px 14px; font-size: 18px; letter-spacing: .3px; }
-  .chip b { color: #ffc864; }
-  #help { position: fixed; bottom: 10px; left: 12px; font-size: 13px; opacity: .8; background: rgba(30,14,50,.55); padding: 6px 12px; border-radius: 10px; }
-  #msg { position: fixed; top: 64px; left: 50%; transform: translateX(-50%); font-size: 20px; padding: 8px 18px; border-radius: 14px; background: rgba(30,14,50,.8); opacity: 0; transition: opacity .3s; pointer-events: none; }
-  #overlay { position: fixed; inset: 0; display: none; align-items: center; justify-content: center; flex-direction: column; background: rgba(10, 4, 24, .78); text-align: center; }
-  #overlay h1 { font-size: 46px; margin: 0 0 8px; }
-  #overlay p { font-size: 20px; margin: 4px; }
-  #overlay button { margin-top: 18px; font-size: 20px; padding: 10px 26px; border-radius: 14px; border: 0; background: #ffb84a; color: #2a1238; cursor: pointer; font-weight: bold; }
-  #start h1 { color: #ffc864; }
+  :root { --ui:#F5F1E6; --gold:#F2C14E; --danger:#FF5A5F; --panel:rgba(14,20,48,.78); --line:rgba(242,193,78,.55); }
+  html, body { margin:0; height:100%; overflow:hidden; background:#0E1430; font-family:"Trebuchet MS", system-ui, sans-serif; color:var(--ui); user-select:none; }
+  canvas { display:block; }
+  .hud { position:fixed; pointer-events:none; }
+  .chip { background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:6px 14px; font-size:18px; }
+  #tl { top:12px; left:12px; display:flex; flex-direction:column; gap:6px; }
+  #flames { font-size:28px; letter-spacing:4px; }
+  #flames .off { filter:grayscale(1) brightness(.5); }
+  #charmChip { display:none; font-size:15px; color:var(--gold); }
+  #tc { top:12px; left:50%; transform:translateX(-50%); font-size:30px; font-weight:bold; font-variant-numeric:tabular-nums; }
+  #tc.low { color:var(--danger); animation:blink .6s steps(2) infinite; }
+  @keyframes blink { 50% { opacity:.25; } }
+  #tr { top:12px; right:12px; display:flex; flex-direction:column; gap:6px; align-items:flex-end; }
+  #score { color:var(--gold); font-weight:bold; }
+  #bc { bottom:18px; left:50%; transform:translateX(-50%); display:flex; flex-direction:column; align-items:center; gap:8px; }
+  #motes { display:flex; gap:5px; }
+  .slot { width:24px; height:24px; border-radius:50%; border:2px solid var(--line); background:rgba(14,20,48,.7); }
+  .slot.on { background:radial-gradient(circle,#FFF6C2 30%,#FFE58A 75%); box-shadow:0 0 10px #FFE58A; }
+  #prompt { background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:6px 14px; font-size:17px; display:none; }
+  #br { bottom:18px; right:16px; display:flex; gap:12px; }
+  .cd { width:64px; height:64px; border-radius:14px; background:var(--panel); border:1px solid var(--line); position:relative; display:flex; flex-direction:column; align-items:center; justify-content:center; font-size:24px; overflow:hidden; }
+  .cd small { font-size:11px; opacity:.85; }
+  .cd .fill { position:absolute; left:0; right:0; bottom:0; background:rgba(255,90,95,.35); height:0; }
+  .cd.ready { border-color:var(--gold); box-shadow:0 0 10px rgba(242,193,78,.5); }
+  #arrow { position:fixed; width:44px; height:44px; margin:-22px 0 0 -22px; display:none; pointer-events:none; color:var(--gold); font-size:34px; text-align:center; line-height:44px; text-shadow:0 0 8px #000; }
+  #msg { top:64px; left:50%; transform:translateX(-50%); font-size:20px; padding:8px 18px; border-radius:14px; background:var(--panel); opacity:0; transition:opacity .3s; }
+  #windwarn { top:110px; left:50%; transform:translateX(-50%); font-size:22px; color:var(--gold); display:none; }
+  #help { bottom:10px; left:12px; font-size:12px; opacity:.75; background:var(--panel); padding:6px 10px; border-radius:10px; max-width:360px; }
+  #fps { top:90px; left:12px; font-size:12px; display:none; }
+  .screen { position:fixed; inset:0; display:none; align-items:center; justify-content:center; flex-direction:column; background:rgba(8,10,28,.82); text-align:center; }
+  .screen.show { display:flex; }
+  .screen h1 { font-size:48px; margin:0 0 6px; color:var(--gold); }
+  .screen h2 { margin:0 0 6px; color:var(--gold); }
+  .screen p { font-size:19px; margin:5px; max-width:620px; line-height:1.4; }
+  .screen .quote { font-style:italic; opacity:.95; }
+  .btns { display:flex; flex-direction:column; gap:10px; margin-top:16px; min-width:260px; }
+  button { font:inherit; font-size:19px; font-weight:bold; padding:10px 24px; border-radius:14px; border:0; background:#FFB347; color:#0E1430; cursor:pointer; }
+  button.sec { background:rgba(245,241,230,.14); color:var(--ui); border:1px solid var(--line); }
+  button:hover { filter:brightness(1.12); }
+  .row { display:flex; align-items:center; gap:12px; margin:8px 0; font-size:18px; justify-content:space-between; min-width:380px; }
+  input[type=range] { width:200px; }
+  #fade { position:fixed; inset:0; background:#000; opacity:0; pointer-events:none; transition:opacity .4s; }
 </style>
 </head>
 <body>
-<div id="hud">
-  <div class="chip">🔥 Lửa <b id="flames">3</b></div>
-  <div class="chip">✨ Mang <b id="carried">0</b>/<span id="cap">5</span></div>
-  <div class="chip">🏮 Đèn <b id="lit">0</b>/<span id="lcount">5</span></div>
-  <div class="chip">⏳ <b id="time">5:00</b></div>
-  <div class="chip">⭐ Điểm <b id="score">0</b></div>
+<div id="tl" class="hud"><div class="chip"><span id="flames"></span></div><div class="chip" id="charmChip">🌬️ Bùa Gió <b id="charmS">0</b>s</div></div>
+<div id="tc" class="hud chip">5:00</div>
+<div id="tr" class="hud"><div class="chip">🏮 Đèn <b id="lit">0</b>/<span id="lcount">5</span></div><div class="chip">⭐ <b id="score">0</b></div></div>
+<div id="bc" class="hud"><div id="prompt"></div><div id="motes"></div></div>
+<div id="br" class="hud">
+  <div class="cd" id="cdDash"><span>💨</span><small>Shift</small><div class="fill"></div></div>
+  <div class="cd" id="cdPulse"><span>✨</span><small>F</small><div class="fill"></div></div>
 </div>
-<div id="msg"></div>
-<div id="help">WASD di chuyển · ←/→ hoặc kéo chuột để xoay camera · Space nhảy · E nạp đèn · F tỏa sáng · R chơi lại</div>
-<div id="start" class="overlay-start" style="position:fixed;inset:0;display:flex;align-items:center;justify-content:center;flex-direction:column;background:rgba(10,4,24,.82);text-align:center;">
-  <h1 style="font-size:46px;margin:0 0 6px;color:#ffc864">Đảo Đèn Lồng</h1>
-  <p style="font-size:20px;margin:4px">Đêm 1 – Đảo Bến</p>
-  <p style="font-size:17px;max-width:560px;opacity:.9">Sương đen đã nuốt ánh sáng của đảo. Nhặt đom đóm, mang về thắp 5 Đèn Lồng Lớn. Tỏa sáng (F) để xua Bóng Mực — nhưng việc đó tốn 1 đom đóm.</p>
-  <button id="startBtn" style="margin-top:18px;font-size:20px;padding:10px 26px;border-radius:14px;border:0;background:#ffb84a;color:#2a1238;cursor:pointer;font-weight:bold">Bắt đầu (Enter)</button>
+<div id="arrow">➤</div>
+<div id="msg" class="hud"></div>
+<div id="windwarn" class="hud chip">🍃 Gió sắp nổi — bám chắc!</div>
+<div id="help" class="hud">WASD đi · kéo chuột hoặc ←/→ xoay camera · Space nhảy · Shift lướt · E nạp đèn · F tỏa sáng · Esc/P tạm dừng · R chơi lại đêm</div>
+<div id="fps" class="hud chip"></div>
+
+<div id="menu" class="screen show">
+  <h1>Đảo Đèn Lồng</h1>
+  <p>Sương đen đã nuốt ánh sáng của ba hòn đảo. Mây — người thắp đèn nhỏ bé — phải nhặt đom đóm và thắp lại từng ngọn đèn lồng.</p>
+  <div class="btns"><button id="bPlay">Bắt đầu (Enter)</button><button id="bMenuSet" class="sec">Cài đặt</button></div>
 </div>
-<div id="overlay"><h1 id="ovTitle"></h1><p id="ovText"></p><p id="ovScore"></p><button id="again">Chơi lại (R)</button></div>
+<div id="intro" class="screen">
+  <h2 id="inTitle"></h2><p id="inName" style="font-size:30px"></p>
+  <p class="quote" id="inQuote"></p><p id="inInfo" style="font-size:16px;opacity:.85"></p>
+  <div class="btns"><button id="bGo">Vào đêm (Enter)</button></div>
+</div>
+<div id="pause" class="screen">
+  <h1>Tạm dừng</h1>
+  <div class="btns"><button id="bResume">Tiếp tục (Esc)</button><button id="bRestart" class="sec">Chơi lại Đêm</button><button id="bPauseSet" class="sec">Cài đặt</button><button id="bToMenu" class="sec">Về menu</button></div>
+</div>
+<div id="settings" class="screen">
+  <h1>Cài đặt</h1>
+  <div class="row"><span>Âm lượng</span><input id="sVol" type="range" min="0" max="1" step="0.05"><b id="sVolV"></b></div>
+  <div class="row"><span>Độ nhạy chuột</span><input id="sSens" type="range" min="0.2" max="3" step="0.1"><b id="sSensV"></b></div>
+  <div class="btns"><button id="bSetBack">Quay lại</button></div>
+</div>
+<div id="result" class="screen">
+  <h1 id="rTitle"></h1><p id="rText"></p><p id="rScore"></p>
+  <div class="btns"><button id="bNext"></button><button id="bRetry" class="sec">Chơi lại Đêm này</button><button id="bResMenu" class="sec">Về menu</button></div>
+</div>
+<div id="dawn" class="screen">
+  <h1>🌅 Bình Minh</h1>
+  <p>Ba hòn đảo đã sáng đèn. Ông Đăng mỉm cười: "Cảm ơn con, người thắp đèn bé nhỏ."</p>
+  <p style="font-size:30px;color:var(--gold)">Tổng điểm: <b id="dTotal">0</b></p>
+  <div class="btns"><button id="bDawnMenu">Về menu</button></div>
+</div>
+<div id="fade"></div>
 <script type="importmap">{ "imports": { "three": "/vendor/three.module.js" } }</script>
 <script type="module" src="/web/main.js"></script>
 </body>

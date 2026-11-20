@@ -2,7 +2,7 @@
 import fs from 'node:fs';
 import { TUNING } from '../src/tuning.js';
 const contract = {
-  contract_version: '1.0',
+  contract_version: '1.1',
   team: '2A202603434-nguyen-anh-tu',
   build_cmd: 'npm install',
   run_cmd: 'npm start',

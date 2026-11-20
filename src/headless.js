@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Chế độ headless theo Test Contract v1.0
+// Chế độ headless theo Test Contract v1.1
 // node src/headless.js --seed <int> --night 1 [--scenario f.json] [--inputs f.json]
 //                      --ticks <int> --out f.jsonl [--snapshot-every <int>]
 import fs from 'node:fs';
@@ -45,7 +45,7 @@ function readJson(path, what) {
 const args = parseArgs(process.argv.slice(2));
 const seed = intArg(args, 'seed', 1, -2147483648);
 const night = intArg(args, 'night', 1, 1);
-if (night !== 1) fail(1, 'Phase 1 chỉ có --night 1');
+if (night < 1 || night > 3) fail(1, '--night phải là 1, 2 hoặc 3');
 const ticks = intArg(args, 'ticks', undefined, 0);
 const every = intArg(args, 'snapshot-every', 10, 1);
 if (!args.out) fail(1, 'thiếu --out');
@@ -59,21 +59,22 @@ if (args.inputs) {
 }
 
 let game;
-try { game = createGame({ seed, scenario }); } catch (e) {
+try { game = createGame({ seed, night, scenario }); } catch (e) {
   if (e instanceof ScenarioError) fail(2, e.message);
   throw e;
 }
 
 const lines = [JSON.stringify(snapshot(game))];
+for (const e of game.events) lines.push(JSON.stringify(e)); // night_start (tick 0)
 const input = newInputState();
 let fi = 0;
 let lastSnapTick = 0;
-for (let k = 0; k < ticks && game.state === 'playing'; k++) {
+for (let k = 0; k < ticks && game.state !== 'won' && game.state !== 'lost'; k++) {
   while (fi < frames.length && frames[fi].tick <= k) { applyFrame(input, frames[fi]); fi++; }
   const events = step(game, input);
   for (const e of events) lines.push(JSON.stringify(e));
-  if (game.sim_tick % every === 0) { lines.push(JSON.stringify(snapshot(game))); lastSnapTick = game.sim_tick; }
+  if (game.tick % every === 0) { lines.push(JSON.stringify(snapshot(game))); lastSnapTick = game.tick; }
 }
-if (game.sim_tick !== lastSnapTick) lines.push(JSON.stringify(snapshot(game)));
-lines.push(JSON.stringify({ type: 'end', ticks: game.sim_tick, state: game.state, score: game.score }));
+if (game.tick !== lastSnapTick) lines.push(JSON.stringify(snapshot(game)));
+lines.push(JSON.stringify({ type: 'end', ticks: game.tick, state: game.state, score: game.score }));
 try { fs.writeFileSync(args.out, lines.join('\n') + '\n'); } catch (e) { fail(1, 'không ghi được --out: ' + e.message); }

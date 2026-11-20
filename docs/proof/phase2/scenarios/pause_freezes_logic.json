@@ -1,0 +1,27 @@
+{
+  "random_motes": false,
+  "random_shades": false,
+  "random_drifters": false,
+  "wind_enabled": false,
+  "motes": [
+    {
+      "pos": [
+        30,
+        0,
+        0
+      ],
+      "ttl_ticks": 300
+    }
+  ],
+  "shades": [],
+  "drifters": [],
+  "charms": [],
+  "player": {
+    "pos": [
+      0,
+      0,
+      0
+    ],
+    "dash_cd_ticks": 80
+  }
+}

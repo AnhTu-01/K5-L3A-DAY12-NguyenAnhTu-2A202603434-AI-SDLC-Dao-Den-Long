@@ -1,7 +1,7 @@
 # Bằng chứng Phase 1 (tự sinh, không sửa tay)
 
 - Sinh bởi: `npm run proof` (scripts/proof.js)
-- Commit lúc sinh: `(chưa commit)` · Node v22.15.1 · darwin x64
+- Commit lúc sinh: `(chưa commit)` · Node v22.23.4 · linux x64
 - Mỗi dòng dưới đây chạy **chế độ headless thật** (`node src/headless.js ...`); scenario, inputs và output nằm cạnh trong `scenarios/`, `inputs/`, `outputs/`.
 
 | # | Yêu cầu | Kịch bản | Kết quả | Chi tiết đo được |
