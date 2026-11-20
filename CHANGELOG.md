@@ -1,5 +1,15 @@
 # Changelog
 
+## Phase 4 — v1.0.0 · Contract v1.3 "Bình minh: phát hành"
+Không có thay đổi phá vỡ luật chơi (luật, số liệu và đầu ra headless giữ nguyên Contract v1.2).
+- **Contract:** `contract_version "1.3"`; `game.contract.json` thêm `bench_cmd`, `soak_cmd`; `run_cmd` đổi thành `node server.js` để nhận `--export-leaderboard out.json` (npm nuốt cờ này).
+- **Benchmark:** `scripts/bench.js` + chế độ `?bench=1` trong game; cờ `bench` của `createGame` (mặc định tắt) tắt sinh thêm thực thể, sát thương, nhặt đom đóm, hao dầu, kết thúc Đêm. Đầu ra `bench.json` đúng định nghĩa chỉ số của ticket.
+- **Soak:** `scripts/soak.js` 10 Đêm trong một tiến trình, kiểm crash và bộ nhớ.
+- **Bảng xếp hạng:** top 10 lưu trên đĩa (`data/leaderboard.json`), màn hình từ menu, lưu điểm sau Bình Minh hoặc khi thua, xuất bằng `node server.js --export-leaderboard`.
+- **Dễ tiếp cận:** đổi mọi phím (phát hiện trùng, khôi phục mặc định, lưu), chỉ báo hình ảnh (Bóng Mực mới + mũi tên mép màn hình, gió, 10 s cuối, đèn fuel<30), giảm chuyển động (thêm rung camera/chớp màn hình để người chơi bật tắt được), chữ ≥18 px và tùy chọn chữ lớn ×1,25.
+- **Thay đổi hành vi nhỏ ở giao diện:** phím tạm dừng mặc định chỉ còn `Esc` (bỏ `P` làm phím phụ để phím đổi được và không trùng).
+- **Đóng gói:** `npm run release` tạo `dao-den-long-v1.0.0.zip` chạy được bằng `node server.js`; README, CREDITS, LICENSE, retro, bằng chứng `docs/proof/phase4/`.
+
 ## Phase 3 — Contract v1.2 "Đèn cạn dầu" (BREAKING)
 Thay đổi phá vỡ tương thích so với Phase 2 (v1.1):
 - **Thắng:** không còn thắng sớm khi đủ đèn. Thắng = sống tới hết giờ với ≥ ceil(0.6×đèn) đèn sáng; `game_over.reason`: `dawn_survived` (thắng), `dawn` / `no_flames` (thua). `all_lit` **không còn phát**.

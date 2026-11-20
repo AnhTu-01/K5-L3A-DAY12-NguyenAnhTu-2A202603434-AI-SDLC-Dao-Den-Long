@@ -5,14 +5,19 @@ import { createGame, step, newInputState, timeLeftS, capacity, DT } from '/src/s
 import { TUNING as T, WORLD } from '/src/tuning.js';
 import { NIGHTS } from '/src/maps.js';
 import { PAL, ambientIntensity } from '/web/palette.js';
+import * as KB from '/src/keybinds.js';
+import * as LB from '/src/leaderboard-core.js';
+import { benchScenario, benchCamera, benchStats, BENCH } from '/src/bench-scene.js';
 
 const $ = (id) => document.getElementById(id);
 const Q = new URLSearchParams(location.search);
 
 // ---------- Cài đặt (lưu giữa các lần mở) ----------
-const settings = { volume: 0.7, sens: 1, cb: false };
+const settings = { volume: 0.7, sens: 1, cb: false, rm: false, big: false, keys: { ...KB.DEFAULTS } };
 try { Object.assign(settings, JSON.parse(localStorage.getItem('ddl-settings') || '{}')); } catch (e) { /* localStorage có thể không dùng được */ }
+settings.keys = KB.sanitize(settings.keys);
 function applyCb() { document.documentElement.style.setProperty('--danger', settings.cb ? '#FFFFFF' : '#FF5A5F'); document.documentElement.classList.toggle('cb', !!settings.cb); }
+document.documentElement.classList.toggle('big', !!settings.big); document.documentElement.classList.toggle('rm', !!settings.rm);
 applyCb();
 function saveSettings() { try { localStorage.setItem('ddl-settings', JSON.stringify(settings)); } catch (e) { /* bỏ qua */ } }
 
@@ -192,13 +197,15 @@ function makeLantern(l) {
   g.position.set(l.pos[0], l.pos[1], l.pos[2]); world.add(g);
   return { g, box, core, glow, ring, tank, bar, barFill, torn };
 }
-function makeShade() {
+const shadeGeo = { body: new THREE.SphereGeometry(0.9, 16, 12), rim: new THREE.SphereGeometry(1.0, 16, 12), eye: new THREE.SphereGeometry(0.12, 8, 6), drip: new THREE.ConeGeometry(0.5, 0.9, 10), beam: new THREE.CylinderGeometry(0.08, 0.08, 1, 6) };
+const shadeEyeMat = new THREE.MeshBasicMaterial({ color: 0xe9d9ff }), shadeDripMat = new THREE.MeshLambertMaterial({ color: PAL.shadeBody });
+function makeShade() { // hình học dùng chung giữa các Bóng (bench có 200 con); chỉ vật liệu thân/viền riêng vì đổi màu theo trạng thái
   const g = new THREE.Group();
-  const body = new THREE.Mesh(new THREE.SphereGeometry(0.9, 16, 12), new THREE.MeshLambertMaterial({ color: PAL.shadeBody, emissive: PAL.shadeRim, emissiveIntensity: 0.25 })); g.add(body);
-  const rim = new THREE.Mesh(new THREE.SphereGeometry(1.0, 16, 12), new THREE.MeshBasicMaterial({ color: PAL.shadeRim, side: THREE.BackSide, transparent: true, opacity: 0.55 })); g.add(rim);
-  const eyes = []; for (const x of [-0.3, 0.3]) { const e = new THREE.Mesh(new THREE.SphereGeometry(0.12, 8, 6), new THREE.MeshBasicMaterial({ color: 0xe9d9ff })); e.position.set(x, 0.15, 0.78); g.add(e); eyes.push(e); }
-  const drip = new THREE.Mesh(new THREE.ConeGeometry(0.5, 0.9, 10), new THREE.MeshLambertMaterial({ color: PAL.shadeBody })); drip.position.y = -0.8; drip.rotation.x = Math.PI; g.add(drip);
-  const beam = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.08, 1, 6), new THREE.MeshBasicMaterial({ color: 0xff9a3c, transparent: true, opacity: 0.7 })); beam.visible = false; world.add(beam);
+  const body = new THREE.Mesh(shadeGeo.body, new THREE.MeshLambertMaterial({ color: PAL.shadeBody, emissive: PAL.shadeRim, emissiveIntensity: 0.25 })); g.add(body);
+  const rim = new THREE.Mesh(shadeGeo.rim, new THREE.MeshBasicMaterial({ color: PAL.shadeRim, side: THREE.BackSide, transparent: true, opacity: 0.55 })); g.add(rim);
+  const eyes = []; for (const x of [-0.3, 0.3]) { const e = new THREE.Mesh(shadeGeo.eye, shadeEyeMat); e.position.set(x, 0.15, 0.78); g.add(e); eyes.push(e); }
+  const drip = new THREE.Mesh(shadeGeo.drip, shadeDripMat); drip.position.y = -0.8; drip.rotation.x = Math.PI; g.add(drip);
+  const beam = new THREE.Mesh(shadeGeo.beam, new THREE.MeshBasicMaterial({ color: 0xff9a3c, transparent: true, opacity: 0.7 })); beam.visible = false; world.add(beam);
   world.add(g); return { g, body, rim, eyes, beam };
 }
 function makeDrifter() {
@@ -225,9 +232,11 @@ const leafPos = new Float32Array(LEAVES * 3); leafGeo.setAttribute('position', n
 const leaves = new THREE.Points(leafGeo, new THREE.PointsMaterial({ color: 0x9fd68a, size: 0.6, transparent: true, opacity: 0.9 })); leaves.visible = false; leaves.frustumCulled = false; scene.add(leaves);
 
 // ---------- Trạng thái chương trình ----------
-const ui = { mode: 'menu', night: 1, total: 0 };
+const ui = { mode: 'menu', night: 1, total: 0, nightsWon: 0, runSeed: 0 };
 let game = null, acc = 0, last = performance.now(), msgTimer = 0, camYaw = 0, lastCountdown = 99, windSfxDone = false;
-const keys = new Set(); const input = newInputState();
+const keys = new Set(); // mã phím đã chuẩn hóa (ShiftRight → ShiftLeft)
+const held = (code) => keys.has(code);
+ const input = newInputState();
 let pendingJump = false, pendingDash = false, pauseReq = false;
 const fpsInfo = { frames: 0, t0: performance.now(), avg: 0 };
 
@@ -241,7 +250,7 @@ const INFO = { 1: '5 đèn · 4:00 · giữ ≥3 đèn sáng tới bình minh', 
 function show(id) { for (const s of document.querySelectorAll('.screen')) s.classList.toggle('show', s.id === id); }
 function say(text) { const m = $('msg'); m.textContent = text; m.style.opacity = 1; msgTimer = 2.2; }
 
-function gotoMenu() { ui.mode = 'menu'; ui.total = 0; ui.night = 1; game = null; stopMusic(); show('menu'); setHud(false); }
+function gotoMenu() { ui.mode = 'menu'; ui.total = 0; ui.nightsWon = 0; ui.night = 1; game = null; stopMusic(); show('menu'); setHud(false); }
 function gotoIntro(n) {
   ui.mode = 'intro'; ui.night = n; show('intro'); setHud(false);
   $('inTitle').textContent = `Đêm ${n}`; $('inName').textContent = NIGHTS[n].name; $('inQuote').textContent = QUOTES[n]; $('inInfo').textContent = INFO[n];
@@ -250,7 +259,9 @@ function setHud(on) { for (const id of ['tl', 'tc', 'tr', 'bc', 'br', 'help']) $
 function startNight() {
   ensureAudio(); startMusic();
   const n = ui.night;
-  game = createGame({ seed: (Date.now() & 0x7fffffff), night: n });
+  const seed = (Date.now() & 0x7fffffff); if (n === 1) ui.runSeed = seed;
+  game = createGame({ seed, night: n });
+  alertState.clear(); shake = 0;
   Object.assign(input, newInputState()); acc = 0; pendingJump = pendingDash = pauseReq = false; lastCountdown = 99; windSfxDone = false;
   buildWorld(n);
   for (const m of [lanternObjs, moteObjs, shadeObjs, drifterObjs, charmObjs]) m.clear();
@@ -262,24 +273,141 @@ function startNight() {
   buildSlots();
   say(`Đêm ${n} — ${NIGHTS[n].name}`);
 }
+// ---------- Chỉ báo hình ảnh (phụ đề): Bóng Mực mới xuất hiện (mũi tên ở mép), gió sắp thổi, 10 s cuối, đèn fuel < 30 ----------
+const alertState = new Map(); // id Bóng → thời điểm hết hiển thị (giây, theo clock)
+let shake = 0;
+const sArrows = []; for (let i = 0; i < 4; i++) { const d = document.createElement('div'); d.className = 'sarrow'; d.textContent = '➤'; document.body.appendChild(d); sArrows.push(d); }
+function flash() { if (settings.rm) return; const f = $('flash'); f.style.opacity = 0.35; setTimeout(() => { f.style.opacity = 0; }, 120); }
+function edgeArrow(el, x, y, z) {
+  v3.set(x, y, z).project(camera);
+  const behind = v3.z > 1, off = behind || Math.abs(v3.x) > 0.92 || Math.abs(v3.y) > 0.88;
+  if (!off) { el.style.display = 'none'; return false; }
+  let nx = v3.x, ny = v3.y; if (behind) { nx = -nx; ny = -ny; }
+  const m = Math.max(Math.abs(nx) / 0.9, Math.abs(ny) / 0.84, 1e-6); nx /= m; ny /= m;
+  el.style.display = 'block'; el.style.left = ((nx + 1) / 2 * innerWidth) + 'px'; el.style.top = ((1 - ny) / 2 * innerHeight) + 'px'; el.style.transform = `rotate(${Math.atan2(-ny, nx)}rad)`;
+  return true;
+}
+function updateAlerts() {
+  const chips = [];
+  const t = Math.max(0, timeLeftS(game));
+  if (t <= 10 && t > 0) chips.push(`⚠ ${Math.ceil(t)} giây cuối!`);
+  if (game.wind.warn) chips.push('⚠ Gió sắp thổi — bám chắc!');
+  for (const l of game.lanterns) if (l.lit && l.fuelU / 60 < T.low_fuel_threshold) chips.push(`⚠ Đèn ${l.id} sắp hết dầu (${Math.floor(l.fuelU / 60)})`);
+  for (const [id, until] of alertState) { if (clock > until) alertState.delete(id); else chips.push(`⚠ Bóng Mực ${id} xuất hiện!`); }
+  const key = chips.join('|'); if (key !== updateAlerts.last) { updateAlerts.last = key; $('alerts').innerHTML = chips.slice(0, 4).map((c) => `<div class="chip">${c}</div>`).join(''); }
+  let n = 0;
+  for (const id of alertState.keys()) { const s = game.shades.find((x) => x.id === id); if (s && n < sArrows.length) { if (edgeArrow(sArrows[n], s.pos[0], s.pos[1] + 1, s.pos[2])) n++; } }
+  for (; n < sArrows.length; n++) sArrows[n].style.display = 'none';
+}
 let slotCount = 0;
 function buildSlots(n = T.carry_capacity) { slotCount = n; $('motes').innerHTML = Array.from({ length: n }, () => '<div class="slot"></div>').join(''); }
 
+// ---------- Chế độ benchmark (?bench=1&seed=42&duration=30) ----------
+let bench = null;
+function startBench(seed, duration) {
+  game = createGame({ seed, night: 1, scenario: benchScenario(seed), bench: true });
+  Object.assign(input, newInputState()); acc = 0;
+  buildWorld(1);
+  for (const m of [lanternObjs, moteObjs, shadeObjs, drifterObjs, charmObjs]) m.clear();
+  for (const l of game.lanterns) lanternObjs.set(l.id, makeLantern(l));
+  $('lcount').textContent = game.lanterns.length;
+  ui.mode = 'bench'; show('none'); setHud(true); buildSlots();
+  bench = { seed, duration, t0: null, prev: null, dts: [], firstEpoch: null, done: false };
+}
+function benchFrame(now) {
+  if (bench.t0 === null) { bench.t0 = now; bench.firstEpoch = performance.timeOrigin + performance.now(); }
+  const el = (now - bench.t0) / 1000;
+  const idle = newStateIdle();
+  for (acc += Math.min(0.1, (now - (bench.lastNow ?? now)) / 1000); acc >= DT; acc -= DT) step(game, idle);
+  bench.lastNow = now;
+  updateHud(); syncScene(el);
+  const c = benchCamera(el); camera.position.set(c.pos[0], c.pos[1], c.pos[2]); camera.lookAt(0, 0, 0);
+  if (el >= BENCH.warmupS && !bench.done) {
+    if (bench.prev !== null) bench.dts.push(now - bench.prev);
+    bench.prev = now;
+    if (el >= BENCH.warmupS + bench.duration) finishBench();
+  }
+}
+const newStateIdle = () => { const i = newInputState(); i.move = [0, 0]; i.cam_yaw_deg = 0; return i; };
+function finishBench() {
+  bench.done = true;
+  let rend = 'WebGL';
+  try { const gl = renderer.getContext(), ext = gl.getExtension('WEBGL_debug_renderer_info'); rend = `Three.js r${THREE.REVISION} / ${gl.getParameter(gl.VERSION)} / ${ext ? gl.getParameter(ext.UNMASKED_RENDERER_WEBGL) : 'GPU ẩn'} / ${navigator.userAgent}`; } catch (e) { /* bỏ qua */ }
+  const result = { ...benchStats(bench.dts), first_frame_epoch: bench.firstEpoch, renderer: rend };
+  window.__benchResult = result;
+  $('msg').textContent = `Benchmark xong: ${result.avg_fps} FPS (p1 low ${result.p1_low_fps})`; $('msg').style.opacity = 1; msgTimer = 1e9;
+  fetch('/__bench', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(result) }).catch(() => { /* mở thủ công: xem window.__benchResult */ });
+}
+
 // ---------- Nút bấm ----------
-$('bPlay').onclick = () => { ensureAudio(); gotoIntro(1); };
+$('bPlay').onclick = () => { ensureAudio(); ui.total = 0; ui.nightsWon = 0; gotoIntro(1); };
 $('bMenuSet').onclick = () => openSettings('menu');
 $('bGo').onclick = () => startNight();
 $('bResume').onclick = () => { pauseReq = true; };
 $('bRestart').onclick = () => { game = null; startNight(); };
 $('bPauseSet').onclick = () => openSettings('pause');
 $('bToMenu').onclick = () => gotoMenu();
+let saveFrom = 'result';
+function openSave(from) { saveFrom = from; ui.mode = 'save'; $('saveScore').textContent = ui.total; $('saveWon').textContent = ui.nightsWon; $('nameIn').value = ''; $('saveErr').textContent = ''; show('save'); setTimeout(() => $('nameIn').focus(), 50); }
+$('bResSave').onclick = () => openSave('result');
+$('bDawnSave').onclick = () => openSave('dawn');
+$('bSaveSkip').onclick = () => { ui.mode = 'result'; show(saveFrom); };
+$('bSaveGo').onclick = async () => {
+  const name = $('nameIn').value.trim(), err = LB.validateName(name);
+  if (err) { $('saveErr').textContent = '⚠ ' + err; return; }
+  const entry = { name, score: ui.total, nights_won: ui.nightsWon, achieved_at: LB.nowIso(), seed: ui.runSeed };
+  const ok = await saveScore(entry);
+  $('saveErr').textContent = ok ? '' : '⚠ Không lưu được';
+  if (ok) { $('bResSave').style.display = 'none'; $('bDawnSave').style.display = 'none'; openBoard(saveFrom); }
+};
+$('nameIn').addEventListener('keydown', (e) => { e.stopPropagation(); if (e.key === 'Enter') $('bSaveGo').click(); });
+
+// ---------- Bảng xếp hạng: lưu trên đĩa qua máy chủ (data/leaderboard.json); bản web tĩnh không có máy chủ → localStorage ----------
+const LB_KEY = 'ddl-leaderboard';
+const localLoad = () => { try { return LB.sanitize(JSON.parse(localStorage.getItem(LB_KEY) || '[]')); } catch (e) { return []; } };
+async function loadBoard() {
+  try { const r = await fetch('/api/leaderboard'); if (r.ok) return { entries: (await r.json()).entries, where: 'đĩa của máy chủ' }; } catch (e) { /* không có máy chủ */ }
+  return { entries: localLoad(), where: 'trình duyệt này (không có máy chủ)' };
+}
+async function saveScore(entry) {
+  try { const r = await fetch('/api/leaderboard', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(entry) }); if (r.ok) return true; } catch (e) { /* thử localStorage */ }
+  try { localStorage.setItem(LB_KEY, JSON.stringify(LB.addEntry(localLoad(), entry))); return true; } catch (e) { return false; }
+}
+let boardFrom = 'menu';
+async function openBoard(from) {
+  boardFrom = from; ui.mode = 'board'; show('board'); $('boardList').innerHTML = ''; $('boardNote').textContent = 'Đang tải…';
+  const { entries, where } = await loadBoard();
+  const esc = (t) => t.replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]));
+  $('boardList').innerHTML = entries.length ? entries.map((e) => `<li><b>${esc(e.name)}</b> — ${e.score} điểm · ${e.nights_won}/3 Đêm · ${e.achieved_at.slice(0, 10)}</li>`).join('') : '<li style="list-style:none">Chưa có điểm nào.</li>';
+  $('boardNote').textContent = 'Lưu tại: ' + where;
+}
+$('bBoard').onclick = () => openBoard('menu');
+$('bBoardBack').onclick = () => { if (boardFrom === 'menu') gotoMenu(); else { ui.mode = 'result'; show(boardFrom); } };
 $('bResMenu').onclick = () => gotoMenu();
 $('bRetry').onclick = () => startNight();
 $('bDawnMenu').onclick = () => gotoMenu();
 $('bNext').onclick = () => { if (ui.night < 3) gotoIntro(ui.night + 1); };
 let settingsFrom = 'menu';
-function openSettings(from) { settingsFrom = from; ui.mode = 'settings'; $('sVol').value = settings.volume; $('sSens').value = settings.sens; $('sCb').checked = !!settings.cb; $('sVolV').textContent = Math.round(settings.volume * 100) + '%'; $('sSensV').textContent = settings.sens.toFixed(1); show('settings'); }
+function openSettings(from) { settingsFrom = from; ui.mode = 'settings'; $('sVol').value = settings.volume; $('sSens').value = settings.sens; $('sCb').checked = !!settings.cb; $('sRm').checked = !!settings.rm; $('sBig').checked = !!settings.big; renderKeys(); $('keyMsg').textContent = ''; $('sVolV').textContent = Math.round(settings.volume * 100) + '%'; $('sSensV').textContent = settings.sens.toFixed(1); show('settings'); }
 $('bSetBack').onclick = () => { if (settingsFrom === 'pause') { ui.mode = 'play'; show('pause'); } else gotoMenu(); };
+$('sRm').onchange = (e) => { settings.rm = e.target.checked; document.documentElement.classList.toggle('rm', settings.rm); saveSettings(); };
+$('sBig').onchange = (e) => { settings.big = e.target.checked; document.documentElement.classList.toggle('big', settings.big); saveSettings(); };
+// Đổi phím: bấm nút của hành động rồi nhấn phím mới; trùng phím bị từ chối kèm thông báo
+let rebinding = null;
+function renderKeys() {
+  const bad = KB.conflicts(settings.keys);
+  $('keys').innerHTML = KB.ACTIONS.map(([a, name]) => `<span>${name}</span><button class="sec${bad[a] ? ' bad' : ''}" data-a="${a}">${rebinding === a ? 'Nhấn phím…' : KB.label(settings.keys[a])}</button>`).join('');
+  for (const b of $('keys').querySelectorAll('button')) b.onclick = () => { rebinding = rebinding === b.dataset.a ? null : b.dataset.a; ui.mode = rebinding ? 'rebind' : 'settings'; $('keyMsg').textContent = ''; renderKeys(); };
+  $('helpText').textContent = `${KB.label(settings.keys.up)}${KB.label(settings.keys.left)}${KB.label(settings.keys.down)}${KB.label(settings.keys.right)} đi · kéo chuột hoặc ←/→ xoay camera · ${KB.label(settings.keys.jump)} nhảy · ${KB.label(settings.keys.dash)} lướt · ${KB.label(settings.keys.interact)} nạp/châm dầu · ${KB.label(settings.keys.pulse)} tỏa sáng · ${KB.label(settings.keys.pause)} tạm dừng · R chơi lại đêm`;
+}
+function captureKey(e) {
+  e.preventDefault();
+  const r = KB.rebind(settings.keys, rebinding, e.code);
+  if (!r.ok) { $('keyMsg').textContent = '⚠ ' + r.reason + ' — chọn phím khác'; return; }
+  settings.keys = r.map; rebinding = null; ui.mode = 'settings'; $('keyMsg').textContent = ''; saveSettings(); renderKeys();
+}
+$('bKeysReset').onclick = () => { settings.keys = { ...KB.DEFAULTS }; rebinding = null; ui.mode = 'settings'; $('keyMsg').textContent = 'Đã khôi phục phím mặc định'; saveSettings(); renderKeys(); };
+renderKeys();
 $('sCb').onchange = (e) => { settings.cb = e.target.checked; applyCb(); saveSettings(); };
 $('sVol').oninput = (e) => { setVolume(Number(e.target.value)); $('sVolV').textContent = Math.round(settings.volume * 100) + '%'; };
 $('sSens').oninput = (e) => { settings.sens = Number(e.target.value); $('sSensV').textContent = settings.sens.toFixed(1); saveSettings(); };
@@ -287,18 +415,20 @@ $('sSens').oninput = (e) => { settings.sens = Number(e.target.value); $('sSensV'
 addEventListener('keydown', (e) => {
   ensureAudio();
   if (e.repeat) return;
-  keys.add(e.code);
-  if (['Space', 'ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(e.code)) e.preventDefault();
+  if (ui.mode === 'rebind') { captureKey(e); return; }
+  const code = KB.normalize(e.code); keys.add(code);
+  if (['Space', 'ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Tab'].includes(e.code)) e.preventDefault();
   if (ui.mode === 'menu' && e.code === 'Enter') { gotoIntro(1); return; }
   if (ui.mode === 'intro' && e.code === 'Enter') { startNight(); return; }
   if (ui.mode === 'play' && game) {
-    if (e.code === 'Space') pendingJump = true;
-    if (e.code === 'ShiftLeft' || e.code === 'ShiftRight') pendingDash = true;
-    if (e.code === 'Escape' || e.code === 'KeyP') pauseReq = true;
+    if (code === settings.keys.jump) pendingJump = true;
+    if (code === settings.keys.dash) pendingDash = true;
+    if (code === settings.keys.pause) pauseReq = true;
     if (e.code === 'KeyR' && game.state !== 'paused') startNight();
   } else if (e.code === 'Escape' && ui.mode === 'settings') $('bSetBack').click();
+  else if (e.code === 'Escape' && (ui.mode === 'board')) $('bBoardBack').click();
 });
-addEventListener('keyup', (e) => keys.delete(e.code));
+addEventListener('keyup', (e) => keys.delete(KB.normalize(e.code)));
 addEventListener('blur', () => { keys.clear(); if (ui.mode === 'play' && game && game.state === 'playing') pauseReq = true; });
 let dragging = false;
 addEventListener('mousedown', (e) => { if (ui.mode === 'play') dragging = true; });
@@ -309,8 +439,9 @@ addEventListener('resize', () => { renderer.setSize(innerWidth, innerHeight); ca
 function readInput() {
   const k = (c) => keys.has(c);
   // Camera sau lưng nhìn về (sinθ, cosθ). Phải màn hình = −X tại θ=0 nên D ⇒ x = −1.
-  const mx = (k('KeyA') ? 1 : 0) - (k('KeyD') ? 1 : 0);
-  const mz = (k('KeyW') ? 1 : 0) - (k('KeyS') ? 1 : 0);
+  const K = settings.keys;
+  const mx = (k(K.left) ? 1 : 0) - (k(K.right) ? 1 : 0);
+  const mz = (k(K.up) ? 1 : 0) - (k(K.down) ? 1 : 0);
   if (k('ArrowLeft')) camYaw -= 100 * DT * settings.sens;
   if (k('ArrowRight')) camYaw += 100 * DT * settings.sens;
   return [mx, mz];
@@ -332,8 +463,8 @@ function handleEvent(e) {
       break;
     }
     case 'pulse': spawnPulse(P.pos[0], P.pos[1], P.pos[2]); sfx('pulse'); say(e.data.stunned_ids.length ? `Tỏa Sáng! Bóng Mực choáng: ${e.data.stunned_ids.length}` : 'Tỏa Sáng!'); break;
-    case 'player_hit': sfx('hit'); say(e.data.by === 'fall' ? `Rơi khỏi đảo! Còn ${e.data.flames} ngọn lửa` : `Bóng Mực chạm bạn! Còn ${e.data.flames} ngọn lửa`); break;
-    case 'shade_spawned': sfx('spawn'); break;
+    case 'player_hit': sfx('hit'); flash(); if (!settings.rm) shake = 0.3; say(e.data.by === 'fall' ? `Rơi khỏi đảo! Còn ${e.data.flames} ngọn lửa` : `Bóng Mực chạm bạn! Còn ${e.data.flames} ngọn lửa`); break;
+    case 'shade_spawned': sfx('spawn'); alertState.set(e.data.id, clock + 4); break;
     case 'dash': sfx('dash'); break;
     case 'charm_picked': sfx('charm'); say('🌬️ Bùa Gió: chạy nhanh, lướt liên tục!'); break;
     case 'drifter_steal': sfx('steal'); say(`Gió Lạc cướp ${e.data.amount} đom đóm!`); break;
@@ -347,8 +478,8 @@ const need = () => Math.ceil(T.win_ratio * game.lanterns.length);
 function endNight(result, reason) {
   ui.mode = 'result'; sfx(result === 'won' ? 'win' : 'lose'); stopMusic();
   if (result === 'won') {
-    ui.total += game.score;
-    if (ui.night === 3) { $('dTotal').textContent = ui.total; setTimeout(() => { if (ui.mode === 'result') show('dawn'); }, 900); return; }
+    ui.total += game.score; ui.nightsWon += 1;
+    if (ui.night === 3) { $('dTotal').textContent = ui.total; $('bDawnSave').style.display = ''; setTimeout(() => { if (ui.mode === 'result') show('dawn'); }, 900); return; }
     $('rTitle').textContent = `Đêm ${ui.night} đã sáng! 🏮`; $('rText').textContent = `Bình minh đến! Còn ${game.lanterns.filter((l) => l.lit).length}/${game.lanterns.length} đèn sáng (cần ≥ ${need()}) tại ${NIGHTS[ui.night].name}.`;
     $('rScore').textContent = `Điểm đêm này: ${game.score} · Tổng: ${ui.total}`;
     $('bNext').style.display = ''; $('bNext').textContent = `Sang Đêm ${ui.night + 1} →`;
@@ -358,6 +489,7 @@ function endNight(result, reason) {
     $('rScore').textContent = `Điểm đêm này: ${game.score} (không tính vào tổng) · Tổng hiện có: ${ui.total}`;
     $('bNext').style.display = 'none';
   }
+  $('bResSave').style.display = '';
   setTimeout(() => { if (ui.mode === 'result') show('result'); }, 700);
 }
 
@@ -366,6 +498,7 @@ const v3 = new THREE.Vector3();
 function updateHud() {
   const P = game.player, L = game.lanterns;
   $('flames').innerHTML = Array.from({ length: T.flames }, (_, i) => `<span class="${i < P.flames ? '' : 'off'}">🔥</span>`).join('');
+  $('help').style.opacity = (game.sim_tick < 720 || game.state === 'paused') ? 0.85 : 0;
   $('lit').textContent = L.filter((l) => l.lit).length; $('lneed').textContent = need();
   $('score').textContent = ui.total + game.score;
   const t = Math.max(0, timeLeftS(game)), tc = $('tc');
@@ -409,13 +542,13 @@ let clock = 0;
 function syncScene(time) {
   const P = game.player;
   player.position.set(P.pos[0], P.pos[1], P.pos[2]); player.rotation.y = P.heading;
-  player.visible = !(P.invuln > 0 && Math.floor(time * 12) % 2 === 0) && P.fallWait === 0;
+  player.visible = !(P.invuln > 0 && !settings.rm && Math.floor(time * 12) % 2 === 0) && P.fallWait === 0;
   player.userData.light.intensity = 1.2 + P.carried * 0.25;
   const lit = game.lanterns.filter((l) => l.lit).length;
   ambient.intensity = ambientIntensity(lit, game.lanterns.length);
   for (const l of game.lanterns) {
     const o = lanternObjs.get(l.id), need_ = l.ever_lit ? T.relight_cost : T.lantern_cost, prog = l.lit ? 1 : l.deposited / need_;
-    const fuel = l.fuelU / 60, low = l.lit && fuel < T.low_fuel_threshold, blink = !low || Math.floor(time * 2) % 2 === 0; // 1 Hz: sáng 0,5 s / tối 0,5 s
+    const fuel = l.fuelU / 60, low = l.lit && fuel < T.low_fuel_threshold, blink = !low || settings.rm || Math.floor(time * 2) % 2 === 0; // 1 Hz: sáng 0,5 s / tối 0,5 s
     o.bar.visible = l.lit; o.bar.quaternion.copy(camera.quaternion);
     o.barFill.scale.x = Math.max(0.01, fuel / T.fuel_max); o.barFill.position.x = -0.85 * (1 - o.barFill.scale.x);
     o.barFill.material.color.set(low ? (settings.cb ? 0xffffff : PAL.danger) : PAL.lanternLit); o.bar.children.forEach((c) => { if (low) c.visible = blink; else c.visible = true; });
@@ -436,7 +569,7 @@ function syncScene(time) {
     o.g.lookAt(P.pos[0], s.pos[1] + 1, P.pos[2]);
     const st = s.state === 'stunned', dr = s.state === 'drain';
     const rimC = settings.cb ? 0x00b3ff : PAL.shadeRim; o.rim.material.color.set(dr ? 0xff9a3c : rimC); o.body.material.emissive.set(dr ? 0xff9a3c : rimC);
-    o.eyes.forEach((e) => e.material.color.set(settings.cb ? 0x00b3ff : 0xe9d9ff));
+    shadeEyeMat.color.set(settings.cb ? 0x00b3ff : 0xe9d9ff);
     const tl = dr && s.target ? game.lanterns.find((x) => x.id === s.target) : null;
     o.beam.visible = !!tl;
     if (tl) { const a = new THREE.Vector3(s.pos[0], s.pos[1] + 1, s.pos[2]), b = new THREE.Vector3(tl.pos[0], tl.pos[1] + 4, tl.pos[2]); o.beam.position.copy(a).lerp(b, 0.5); o.beam.scale.set(1, a.distanceTo(b), 1); o.beam.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), b.clone().sub(a).normalize()); }
@@ -474,7 +607,7 @@ function syncScene(time) {
 function syncMap(list, objs, make, upd) {
   const seen = new Set();
   for (const e of list) { seen.add(e.id); let o = objs.get(e.id); if (!o) { o = make(e); objs.set(e.id, o); } upd(e, o); }
-  for (const [id, o] of objs) if (!seen.has(id)) { world.remove(o.g); objs.delete(id); }
+  for (const [id, o] of objs) if (!seen.has(id)) { world.remove(o.g); if (o.beam) world.remove(o.beam); objs.delete(id); }
 }
 
 // ---------- Vòng lặp ----------
@@ -482,7 +615,8 @@ function frame(now) {
   requestAnimationFrame(frame);
   const dt = Math.min(0.1, (now - last) / 1000); last = now; clock += dt;
   fpsInfo.frames++; if (now - fpsInfo.t0 >= 1000) { fpsInfo.avg = fpsInfo.frames * 1000 / (now - fpsInfo.t0); fpsInfo.frames = 0; fpsInfo.t0 = now; if (Q.has('fps')) { $('fps').style.display = 'block'; $('fps').textContent = fpsInfo.avg.toFixed(0) + ' FPS'; } }
-  if (ui.mode === 'play' && game) {
+  if (ui.mode === 'bench' && game) { if (!bench.done) benchFrame(now); else syncScene(clock); }
+  else if (ui.mode === 'play' && game) {
     acc += dt;
     while (acc >= DT) {
       acc -= DT;
@@ -492,11 +626,11 @@ function frame(now) {
       input.jump = pendingJump; pendingJump = false;
       input.dash = pendingDash; pendingDash = false;
       input.pause = pauseReq; pauseReq = false;
-      input.interact = keys.has('KeyE'); input.pulse = keys.has('KeyF');
+      input.interact = keys.has(settings.keys.interact); input.pulse = keys.has(settings.keys.pulse);
       for (const e of step(game, input)) handleEvent(e);
       if (ui.mode !== 'play') break;
     }
-    if (game) { updateHud(); syncScene(clock); }
+    if (game) { updateHud(); syncScene(clock); updateAlerts(); if (shake > 0) { shake = Math.max(0, shake - dt); camera.position.x += (Math.random() - 0.5) * shake * 1.2; camera.position.y += (Math.random() - 0.5) * shake * 1.2; } }
   } else if (game && ui.mode !== 'menu') { syncScene(clock); }
   if (msgTimer > 0) { msgTimer -= dt; if (msgTimer <= 0) $('msg').style.opacity = 0; }
   renderer.render(scene, camera);
@@ -504,4 +638,5 @@ function frame(now) {
 setHud(false);
 requestAnimationFrame(frame);
 window.__game = () => game; window.__ui = ui; window.__fps = () => fpsInfo.avg; window.__settings = settings;
-if (Q.has('night')) { const n = Math.min(3, Math.max(1, Number(Q.get('night')) || 1)); gotoIntro(n); if (Q.has('auto')) startNight(); }
+if (Q.has('bench')) startBench(Number(Q.get('seed')) || 42, Number(Q.get('duration')) || 30);
+else if (Q.has('night')) { const n = Math.min(3, Math.max(1, Number(Q.get('night')) || 1)); gotoIntro(n); if (Q.has('auto')) startNight(); }

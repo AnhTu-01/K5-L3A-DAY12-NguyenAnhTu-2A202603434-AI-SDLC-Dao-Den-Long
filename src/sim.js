@@ -125,7 +125,7 @@ export function applyFrame(state, frame) {
   for (const b of BUTTONS) if (frame[b] !== undefined) state[b] = frame[b];
 }
 
-export function createGame({ seed = 1, night = 1, scenario = null, tuning = TUNING } = {}) {
+export function createGame({ seed = 1, night = 1, scenario = null, tuning = TUNING, bench = false } = {}) {
   if (scenario) validateScenario(scenario);
   const N = NIGHTS[night];
   if (!N) throw new ScenarioError('night phải là 1, 2 hoặc 3');
@@ -151,7 +151,7 @@ export function createGame({ seed = 1, night = 1, scenario = null, tuning = TUNI
   const p = sc.player || {};
   const start = p.pos ? [...p.pos] : [...N.start.pos];
   const g = {
-    T, N, rng, seed, night,
+    T, N, rng, seed, night, bench,
     state: 'playing',
     tick: 0,        // tick tường (tăng cả khi tạm dừng)
     sim_tick: 0,    // tick mô phỏng (đứng yên khi tạm dừng)
@@ -173,9 +173,9 @@ export function createGame({ seed = 1, night = 1, scenario = null, tuning = TUNI
     lanterns,
     motes: [], shades: [], drifters: [], charms: [],
     nextMote: 1, nextShade: 1, nextDrifter: 1,
-    randomMotes: sc.random_motes !== false,
-    randomShades: sc.random_shades !== false,
-    randomDrifters: sc.random_drifters !== false && !!N.drifterSpots,
+    randomMotes: !bench && sc.random_motes !== false,
+    randomShades: !bench && sc.random_shades !== false,
+    randomDrifters: !bench && sc.random_drifters !== false && !!N.drifterSpots,
     wind: { enabled: sc.wind_enabled !== undefined ? sc.wind_enabled : N.wind, active: false, warn: false, dir: 0 },
     prev: { jump: false, interact: false, pulse: false, dash: false, pause: false },
     events: [],
@@ -356,7 +356,7 @@ export function step(g, input) {
   const drainers = new Map();
   for (const s of g.shades) if (s.state === 'drain' && s.target) { drainers.set(s.target, (drainers.get(s.target) || 0) + 1); }
   for (const l of g.lanterns) {
-    if (!l.lit) continue;
+    if (!l.lit || g.bench) continue; // bench: không hao dầu
     l.fuelU -= T.fuel_decay_per_s + T.drain_per_s * (drainers.get(l.id) || 0);
   }
   for (const s of g.shades) {
@@ -388,8 +388,8 @@ export function step(g, input) {
   // 3. di chuyển Mây
   if (alive) movePlayer(g, input, jumpEdge, dashEdge);
 
-  // 4. nhặt đom đóm và bùa
-  if (alive) {
+  // 4. nhặt đom đóm và bùa (bench: tắt)
+  if (alive && !g.bench) {
     for (let i = 0; i < g.motes.length && P.carried < capacity(g); ) {
       const m = g.motes[i];
       if (canReach(P, m.pos, T.pickup_radius)) {
@@ -483,8 +483,8 @@ export function step(g, input) {
   for (const s of g.shades) moveShade(g, s);
   for (const d of g.drifters) moveDrifter(g, d);
 
-  // 9. chạm: Gió Lạc cướp trước, rồi Bóng Mực gây hit (theo id tăng dần, tối đa 1 hit/tick)
-  if (alive) {
+  // 9. chạm: Gió Lạc cướp trước, rồi Bóng Mực gây hit (theo id tăng dần, tối đa 1 hit/tick). bench: tắt sát thương
+  if (alive && !g.bench) {
     for (const d of g.drifters) {
       if ((d.state === 'idle' || d.state === 'chase') && P.carried > 0 &&
           dist2d(d.pos[0], d.pos[2], P.pos[0], P.pos[2]) <= WORLD.drifter_steal_radius) {
@@ -544,6 +544,8 @@ export function step(g, input) {
     const sp = N.drifterSpots[i];
     g.drifters.push({ id: 'D' + g.nextDrifter++, pos: [...sp], state: 'idle', stolen: 0, ticks: 0, heading: g.rng() * 2 * Math.PI });
   }
+
+  if (g.bench) return g.events; // bench: không có điều kiện kết thúc Đêm
 
   // 11. thắng / thua (sau mọi cập nhật của tick). Không còn thắng sớm: chỉ xét khi hết giờ (bình minh)
   const tl = timeLeftTicks(g);

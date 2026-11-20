@@ -5,9 +5,9 @@ import { TUNING } from '../src/tuning.js';
 
 const contract = JSON.parse(fs.readFileSync(new URL('../game.contract.json', import.meta.url), 'utf8'));
 
-test('game.contract.json khớp src/tuning.js và có đủ khóa của contract v1.2', () => {
-  assert.equal(contract.contract_version, '1.2');
-  for (const k of ['team', 'build_cmd', 'run_cmd', 'headless_cmd', 'tuning']) assert.ok(contract[k] !== undefined, k);
+test('game.contract.json khớp src/tuning.js và có đủ khóa của contract v1.3', () => {
+  assert.equal(contract.contract_version, '1.3');
+  for (const k of ['team', 'build_cmd', 'run_cmd', 'headless_cmd', 'bench_cmd', 'soak_cmd', 'tuning']) assert.ok(contract[k] !== undefined, k);
   assert.deepEqual(contract.tuning, TUNING);
   assert.equal(contract.tuning.lantern_count_night1, 5);
   // số chuẩn TICKET-02 Phần 1

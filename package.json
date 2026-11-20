@@ -9,7 +9,11 @@
     "headless": "node src/headless.js",
     "test": "node --test tests/*.test.js",
     "proof": "node scripts/proof.js",
-    "contract": "node scripts/gen-contract.js"
+    "proof4": "node scripts/proof4.js",
+    "release": "node scripts/make-release.js",
+    "contract": "node scripts/gen-contract.js",
+    "bench": "node scripts/bench.js --seed 42 --duration 30 --out bench.json",
+    "soak": "node scripts/soak.js --seed 7 --nights 10 --out soak.json"
   },
   "dependencies": {
     "three": "0.160.0"

@@ -21,3 +21,10 @@
 - **Quy trình:** (1) ADR-003 + spec-phase3 (AC) + assumptions-phase3; (2) 99 case dùng chung cho `npm test` và `npm run proof`; (3) hồi quy Phase 2 ghi ở `regression-p2.md`; (4) mutation: phá luật dầu/ngưỡng 30/drain/ngưỡng thắng, case phải đỏ.
 - **Lần AI sai:** hai mutant sống sót ban đầu (`fuel > ngưỡng` và nhánh hết recoil → chase) → thêm case `fuel_exactly_30_keeps_safe_zone` và siết test Tỏa Sáng khi drain. Một mutant tương đương (đèn đầy dầu không chọn được) được ghi ở ADR vì không thể quan sát.
 - **Token / chi phí:** *(tự điền số thật hoặc ghi "không biết")*.
+
+## Phase 4
+- **Công cụ:** Claude (claude.ai) như các Phase trước. Đọc TICKET-04, thêm cờ `bench` vào `sim.js`, viết `scripts/bench.js` / `soak.js` / `proof4.js` / `make-release.js`, logic thuần (`keybinds`, `leaderboard-core`, `bench-scene`, `soak-input`) tách khỏi giao diện để test bằng `node --test`.
+- **Quy trình:** (1) giả định → `assumptions-phase4.md` (23 điểm); (2) AC → `spec-phase4.md`; (3) 24 test mới (tổng 133); (4) mutation 15 chỗ (bẻ thứ tự hòa điểm, giới hạn top 10, độ dài tên, chiều camera, `ceil(1%N)`, các cờ bench, phím cố định, tần suất soak) → test phải đỏ; 3 mutant sống sót ban đầu nên bổ sung test; (5) trình duyệt thật (playwright + Chrome) cho đổi phím, quét cỡ chữ, bảng xếp hạng.
+- **Lần AI sai:** (a) tưởng soak rò rỉ vì RSS tăng 1,6× → đo heap phẳng, nguyên nhân JIT; (b) khung Cài đặt bị cắt đầu trang (chỉ thấy khi xem ảnh chụp); (c) chữ phụ trong lưới phím vẫn 16 px (quét DOM mới thấy).
+- **Chưa tự kiểm được:** FPS thật (sandbox không có GPU), rung camera/chớp màn hình khi bị chạm; để người chơi điền ở `docs/proof/phase4/GUI.md`.
+- **Token / chi phí:** *(tự điền số thật hoặc ghi "không biết")*.

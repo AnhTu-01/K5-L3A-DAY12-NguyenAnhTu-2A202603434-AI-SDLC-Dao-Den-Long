@@ -6,16 +6,17 @@
 <title>Đảo Đèn Lồng</title>
 <link rel="icon" href="data:,">
 <style>
-  :root { --ui:#F5F1E6; --gold:#F2C14E; --danger:#FF5A5F; --panel:rgba(14,20,48,.78); --line:rgba(242,193,78,.55); }
+  :root { --k:1; --ui:#F5F1E6; --gold:#F2C14E; --danger:#FF5A5F; --panel:rgba(14,20,48,.78); --line:rgba(242,193,78,.55); }
+  html.big { --k:1.25; }
   html, body { margin:0; height:100%; overflow:hidden; background:#0E1430; font-family:"Trebuchet MS", system-ui, sans-serif; color:var(--ui); user-select:none; }
   canvas { display:block; }
   .hud { position:fixed; pointer-events:none; }
-  .chip { background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:6px 14px; font-size:18px; }
+  .chip { background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:6px 14px; font-size:calc(18px * var(--k)); }
   #tl { top:12px; left:12px; display:flex; flex-direction:column; gap:6px; }
-  #flames { font-size:28px; letter-spacing:4px; }
+  #flames { font-size:calc(28px * var(--k)); letter-spacing:4px; }
   #flames .off { filter:grayscale(1) brightness(.5); }
-  #charmChip { display:none; font-size:15px; color:var(--gold); }
-  #tc { top:12px; left:50%; transform:translateX(-50%); font-size:30px; font-weight:bold; font-variant-numeric:tabular-nums; }
+  #charmChip { display:none; font-size:calc(18px * var(--k)); color:var(--gold); }
+  #tc { top:12px; left:50%; transform:translateX(-50%); font-size:calc(30px * var(--k)); font-weight:bold; font-variant-numeric:tabular-nums; }
   #tc.low { color:var(--danger); animation:blink .6s steps(2) infinite; }
   @keyframes blink { 50% { opacity:.25; } }
   #tr { top:12px; right:12px; display:flex; flex-direction:column; gap:6px; align-items:flex-end; }
@@ -24,28 +25,44 @@
   #motes { display:flex; gap:5px; }
   .slot { width:24px; height:24px; border-radius:50%; border:2px solid var(--line); background:rgba(14,20,48,.7); }
   .slot.on { background:radial-gradient(circle,#FFF6C2 30%,#FFE58A 75%); box-shadow:0 0 10px #FFE58A; }
-  #prompt { background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:6px 14px; font-size:17px; display:none; }
+  #prompt { background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:6px 14px; font-size:calc(18px * var(--k)); display:none; }
   #br { bottom:18px; right:16px; display:flex; gap:12px; }
-  .cd { width:64px; height:64px; border-radius:14px; background:var(--panel); border:1px solid var(--line); position:relative; display:flex; flex-direction:column; align-items:center; justify-content:center; font-size:24px; overflow:hidden; }
-  .cd small { font-size:11px; opacity:.85; }
+  .cd { width:88px; height:88px; border-radius:14px; background:var(--panel); border:1px solid var(--line); position:relative; display:flex; flex-direction:column; align-items:center; justify-content:center; font-size:calc(24px * var(--k)); overflow:hidden; }
+  .cd small { font-size:calc(18px * var(--k)); opacity:.85; }
   .cd .fill { position:absolute; left:0; right:0; bottom:0; background:rgba(255,90,95,.35); height:0; }
   .cd.ready { border-color:var(--gold); box-shadow:0 0 10px rgba(242,193,78,.5); }
-  #arrow { position:fixed; width:44px; height:44px; margin:-22px 0 0 -22px; display:none; pointer-events:none; color:var(--gold); font-size:34px; text-align:center; line-height:44px; text-shadow:0 0 8px #000; }
-  #msg { top:64px; left:50%; transform:translateX(-50%); font-size:20px; padding:8px 18px; border-radius:14px; background:var(--panel); opacity:0; transition:opacity .3s; }
-  #windwarn { top:110px; left:50%; transform:translateX(-50%); font-size:22px; color:var(--gold); display:none; }
-  #help { bottom:10px; left:12px; font-size:12px; opacity:.75; background:var(--panel); padding:6px 10px; border-radius:10px; max-width:360px; }
-  #fps { top:90px; left:12px; font-size:12px; display:none; }
+  #arrow { position:fixed; width:44px; height:44px; margin:-22px 0 0 -22px; display:none; pointer-events:none; color:var(--gold); font-size:calc(34px * var(--k)); text-align:center; line-height:44px; text-shadow:0 0 8px #000; }
+  #msg { top:64px; left:50%; transform:translateX(-50%); font-size:calc(20px * var(--k)); padding:8px 18px; border-radius:14px; background:var(--panel); opacity:0; transition:opacity .3s; }
+  #windwarn { top:110px; left:50%; transform:translateX(-50%); font-size:calc(22px * var(--k)); color:var(--gold); display:none; }
+  #help { bottom:10px; left:12px; font-size:calc(18px * var(--k)); opacity:.75; background:var(--panel); padding:6px 10px; border-radius:10px; max-width:430px; }
+  #fps { top:90px; left:12px; font-size:calc(18px * var(--k)); display:none; }
+  #flash { position:fixed; inset:0; background:#fff; opacity:0; pointer-events:none; transition:opacity .15s; }
+  html.rm #flash { display:none; }
+  html.rm #tc.low, html.rm .blink { animation:none; }
+  #alerts { position:fixed; top:150px; left:50%; transform:translateX(-50%); display:flex; flex-direction:column; gap:6px; align-items:center; pointer-events:none; }
+  #alerts .chip { color:var(--danger); font-weight:bold; }
+  .sarrow { position:fixed; width:44px; height:44px; margin:-22px 0 0 -22px; display:none; pointer-events:none; color:var(--danger); font-size:calc(34px * var(--k)); text-align:center; line-height:44px; text-shadow:0 0 8px #000; }
+  .keygrid span { font-size:calc(18px * var(--k)); }
+  .keygrid { display:grid; grid-template-columns:auto auto auto auto; gap:6px 18px; align-items:center; text-align:left; margin:8px 0; }
+  .keygrid button { min-width:110px; padding:4px 12px; }
+  .keygrid button.bad { background:var(--danger); color:#000; }
+  #keyMsg { min-height:1.4em; color:var(--danger); font-weight:bold; }
+  #nameIn { font:inherit; font-size:calc(22px * var(--k)); padding:8px 12px; border-radius:10px; border:2px solid var(--line); background:#0E1430; color:var(--ui); text-align:center; user-select:text; }
+  #boardList { text-align:left; font-size:calc(20px * var(--k)); min-width:440px; margin:8px 0; padding-left:34px; }
+  #boardList li { margin:4px 0; }
+  .screen { overflow:auto; justify-content:flex-start !important; }
+  .screen > :first-child { margin-top:auto; } .screen > :last-child { margin-bottom:auto; }
   .screen { position:fixed; inset:0; display:none; align-items:center; justify-content:center; flex-direction:column; background:rgba(8,10,28,.82); text-align:center; }
   .screen.show { display:flex; }
-  .screen h1 { font-size:48px; margin:0 0 6px; color:var(--gold); }
+  .screen h1 { font-size:calc(48px * var(--k)); margin:0 0 6px; color:var(--gold); }
   .screen h2 { margin:0 0 6px; color:var(--gold); }
-  .screen p { font-size:19px; margin:5px; max-width:620px; line-height:1.4; }
+  .screen p { font-size:calc(19px * var(--k)); margin:5px; max-width:620px; line-height:1.4; }
   .screen .quote { font-style:italic; opacity:.95; }
   .btns { display:flex; flex-direction:column; gap:10px; margin-top:16px; min-width:260px; }
-  button { font:inherit; font-size:19px; font-weight:bold; padding:10px 24px; border-radius:14px; border:0; background:#FFB347; color:#0E1430; cursor:pointer; }
+  button { font:inherit; font-size:calc(19px * var(--k)); font-weight:bold; padding:10px 24px; border-radius:14px; border:0; background:#FFB347; color:#0E1430; cursor:pointer; }
   button.sec { background:rgba(245,241,230,.14); color:var(--ui); border:1px solid var(--line); }
   button:hover { filter:brightness(1.12); }
-  .row { display:flex; align-items:center; gap:12px; margin:8px 0; font-size:18px; justify-content:space-between; min-width:380px; }
+  .row { display:flex; align-items:center; gap:12px; margin:8px 0; font-size:calc(18px * var(--k)); justify-content:space-between; min-width:380px; }
   input[type=range] { width:200px; }
   #fade { position:fixed; inset:0; background:#000; opacity:0; pointer-events:none; transition:opacity .4s; }
 </style>
@@ -62,17 +79,17 @@
 <div id="arrow">➤</div>
 <div id="msg" class="hud"></div>
 <div id="windwarn" class="hud chip">🍃 ⚠ Gió sắp nổi — bám chắc!</div>
-<div id="help" class="hud">WASD đi · kéo chuột hoặc ←/→ xoay camera · Space nhảy · Shift lướt · E nạp đèn · F tỏa sáng · Esc/P tạm dừng · R chơi lại đêm</div>
+<div id="help" class="hud"><span id="helpText"></span></div>
 <div id="fps" class="hud chip"></div>
 
 <div id="menu" class="screen show">
   <h1>Đảo Đèn Lồng</h1>
   <p>Sương đen đã nuốt ánh sáng của ba hòn đảo. Mây — người thắp đèn nhỏ bé — phải nhặt đom đóm, thắp đèn lồng và giữ chúng cháy tới bình minh — đèn hao dầu mỗi giây, nhớ châm thêm!</p>
-  <div class="btns"><button id="bPlay">Bắt đầu (Enter)</button><button id="bMenuSet" class="sec">Cài đặt</button></div>
+  <div class="btns"><button id="bPlay">Bắt đầu (Enter)</button><button id="bBoard" class="sec">Bảng xếp hạng</button><button id="bMenuSet" class="sec">Cài đặt</button></div>
 </div>
 <div id="intro" class="screen">
-  <h2 id="inTitle"></h2><p id="inName" style="font-size:30px"></p>
-  <p class="quote" id="inQuote"></p><p id="inInfo" style="font-size:16px;opacity:.85"></p>
+  <h2 id="inTitle"></h2><p id="inName" style="font-size:calc(30px * var(--k))"></p>
+  <p class="quote" id="inQuote"></p><p id="inInfo" style="font-size:calc(18px * var(--k));opacity:.85"></p>
   <div class="btns"><button id="bGo">Vào đêm (Enter)</button></div>
 </div>
 <div id="pause" class="screen">
@@ -84,18 +101,38 @@
   <div class="row"><span>Âm lượng</span><input id="sVol" type="range" min="0" max="1" step="0.05"><b id="sVolV"></b></div>
   <div class="row"><span>Độ nhạy chuột</span><input id="sSens" type="range" min="0.2" max="3" step="0.1"><b id="sSensV"></b></div>
   <div class="row"><span>Bảng màu dễ phân biệt</span><input id="sCb" type="checkbox"></div>
+  <div class="row"><span>Giảm chuyển động (tắt rung camera, chớp màn hình, nhấp nháy)</span><input id="sRm" type="checkbox"></div>
+  <div class="row"><span>Chữ lớn (×1,25)</span><input id="sBig" type="checkbox"></div>
+  <h2>Phím điều khiển</h2>
+  <div class="keygrid" id="keys"></div><div id="keyMsg"></div>
+  <button id="bKeysReset" class="sec">Khôi phục mặc định</button>
   <div class="btns"><button id="bSetBack">Quay lại</button></div>
 </div>
 <div id="result" class="screen">
   <h1 id="rTitle"></h1><p id="rText"></p><p id="rScore"></p>
-  <div class="btns"><button id="bNext"></button><button id="bRetry" class="sec">Chơi lại Đêm này</button><button id="bResMenu" class="sec">Về menu</button></div>
+  <div class="btns"><button id="bNext"></button><button id="bRetry" class="sec">Chơi lại Đêm này</button><button id="bResSave" class="sec">Lưu điểm</button><button id="bResMenu" class="sec">Về menu</button></div>
 </div>
 <div id="dawn" class="screen">
   <h1>🌅 Bình Minh</h1>
   <p>Ba hòn đảo đã sáng đèn. Ông Đăng mỉm cười: "Cảm ơn con, người thắp đèn bé nhỏ."</p>
-  <p style="font-size:30px;color:var(--gold)">Tổng điểm: <b id="dTotal">0</b></p>
-  <div class="btns"><button id="bDawnMenu">Về menu</button></div>
+  <p style="font-size:calc(30px * var(--k));color:var(--gold)">Tổng điểm: <b id="dTotal">0</b></p>
+  <div class="btns"><button id="bDawnSave">Lưu điểm</button><button id="bDawnMenu" class="sec">Về menu</button></div>
 </div>
+<div id="board" class="screen">
+  <h1>Bảng xếp hạng</h1>
+  <ol id="boardList"></ol><p id="boardNote"></p>
+  <div class="btns"><button id="bBoardBack">Quay lại</button></div>
+</div>
+<div id="save" class="screen">
+  <h1>Lưu điểm</h1>
+  <p>Tổng điểm: <b id="saveScore">0</b> · Đêm đã thắng: <b id="saveWon">0</b></p>
+  <p>Nhập tên (3–12 ký tự: chữ không dấu, số hoặc _)</p>
+  <input id="nameIn" maxlength="12" autocomplete="off" spellcheck="false">
+  <p id="saveErr" style="color:var(--danger);min-height:1.4em"></p>
+  <div class="btns"><button id="bSaveGo">Lưu</button><button id="bSaveSkip" class="sec">Bỏ qua</button></div>
+</div>
+<div id="flash"></div>
+<div id="alerts" class="hud"></div>
 <div id="fade"></div>
 <script type="importmap">{ "imports": { "three": "/vendor/three.module.js" } }</script>
 <script type="module" src="/web/main.js"></script>
