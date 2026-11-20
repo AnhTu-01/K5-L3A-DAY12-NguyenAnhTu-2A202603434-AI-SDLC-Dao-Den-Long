@@ -1,0 +1,17 @@
+{
+  "name": "dao-den-long",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Đảo Đèn Lồng - game 3D (Day 12 AI SDLC)",
+  "scripts": {
+    "start": "node server.js",
+    "headless": "node src/headless.js",
+    "test": "node --test tests/*.test.js",
+    "proof": "node scripts/proof.js",
+    "contract": "node scripts/gen-contract.js"
+  },
+  "dependencies": {
+    "three": "0.160.0"
+  }
+}

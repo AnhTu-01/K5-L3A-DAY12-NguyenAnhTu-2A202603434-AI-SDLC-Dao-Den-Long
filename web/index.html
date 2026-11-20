@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Đảo Đèn Lồng</title>
+<link rel="icon" href="data:,">
+<style>
+  html, body { margin: 0; height: 100%; overflow: hidden; background: #120a22; font-family: "Trebuchet MS", system-ui, sans-serif; color: #ffe9b8; }
+  canvas { display: block; }
+  #hud { position: fixed; top: 12px; left: 12px; right: 12px; display: flex; gap: 10px; flex-wrap: wrap; pointer-events: none; }
+  .chip { background: rgba(30, 14, 50, .72); border: 1px solid rgba(255, 190, 90, .5); border-radius: 14px; padding: 6px 14px; font-size: 18px; letter-spacing: .3px; }
+  .chip b { color: #ffc864; }
+  #help { position: fixed; bottom: 10px; left: 12px; font-size: 13px; opacity: .8; background: rgba(30,14,50,.55); padding: 6px 12px; border-radius: 10px; }
+  #msg { position: fixed; top: 64px; left: 50%; transform: translateX(-50%); font-size: 20px; padding: 8px 18px; border-radius: 14px; background: rgba(30,14,50,.8); opacity: 0; transition: opacity .3s; pointer-events: none; }
+  #overlay { position: fixed; inset: 0; display: none; align-items: center; justify-content: center; flex-direction: column; background: rgba(10, 4, 24, .78); text-align: center; }
+  #overlay h1 { font-size: 46px; margin: 0 0 8px; }
+  #overlay p { font-size: 20px; margin: 4px; }
+  #overlay button { margin-top: 18px; font-size: 20px; padding: 10px 26px; border-radius: 14px; border: 0; background: #ffb84a; color: #2a1238; cursor: pointer; font-weight: bold; }
+  #start h1 { color: #ffc864; }
+</style>
+</head>
+<body>
+<div id="hud">
+  <div class="chip">🔥 Lửa <b id="flames">3</b></div>
+  <div class="chip">✨ Mang <b id="carried">0</b>/<span id="cap">5</span></div>
+  <div class="chip">🏮 Đèn <b id="lit">0</b>/<span id="lcount">5</span></div>
+  <div class="chip">⏳ <b id="time">5:00</b></div>
+  <div class="chip">⭐ Điểm <b id="score">0</b></div>
+</div>
+<div id="msg"></div>
+<div id="help">WASD di chuyển · ←/→ hoặc kéo chuột để xoay camera · Space nhảy · E nạp đèn · F tỏa sáng · R chơi lại</div>
+<div id="start" class="overlay-start" style="position:fixed;inset:0;display:flex;align-items:center;justify-content:center;flex-direction:column;background:rgba(10,4,24,.82);text-align:center;">
+  <h1 style="font-size:46px;margin:0 0 6px;color:#ffc864">Đảo Đèn Lồng</h1>
+  <p style="font-size:20px;margin:4px">Đêm 1 – Đảo Bến</p>
+  <p style="font-size:17px;max-width:560px;opacity:.9">Sương đen đã nuốt ánh sáng của đảo. Nhặt đom đóm, mang về thắp 5 Đèn Lồng Lớn. Tỏa sáng (F) để xua Bóng Mực — nhưng việc đó tốn 1 đom đóm.</p>
+  <button id="startBtn" style="margin-top:18px;font-size:20px;padding:10px 26px;border-radius:14px;border:0;background:#ffb84a;color:#2a1238;cursor:pointer;font-weight:bold">Bắt đầu (Enter)</button>
+</div>
+<div id="overlay"><h1 id="ovTitle"></h1><p id="ovText"></p><p id="ovScore"></p><button id="again">Chơi lại (R)</button></div>
+<script type="importmap">{ "imports": { "three": "/vendor/three.module.js" } }</script>
+<script type="module" src="/web/main.js"></script>
+</body>
+</html>

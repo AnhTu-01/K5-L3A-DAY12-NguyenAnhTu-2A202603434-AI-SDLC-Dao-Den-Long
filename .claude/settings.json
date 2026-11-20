@@ -1,0 +1,11 @@
+{
+  "hooks": {
+    "Stop": [
+      {
+        "hooks": [
+          { "type": "command", "command": "cd \"$CLAUDE_PROJECT_DIR\" && npm test --silent >/dev/null 2>&1 || { echo 'npm test đang đỏ: sửa trước khi kết thúc.' >&2; exit 2; }" }
+        ]
+      }
+    ]
+  }
+}
