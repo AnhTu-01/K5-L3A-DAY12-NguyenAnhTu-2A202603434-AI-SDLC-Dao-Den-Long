@@ -53,21 +53,21 @@
 <body>
 <div id="tl" class="hud"><div class="chip"><span id="flames"></span></div><div class="chip" id="charmChip">🌬️ Bùa Gió <b id="charmS">0</b>s</div></div>
 <div id="tc" class="hud chip">5:00</div>
-<div id="tr" class="hud"><div class="chip">🏮 Đèn <b id="lit">0</b>/<span id="lcount">5</span></div><div class="chip">⭐ <b id="score">0</b></div></div>
-<div id="bc" class="hud"><div id="prompt"></div><div id="motes"></div></div>
+<div id="tr" class="hud"><div class="chip">🏮 Đèn <b id="lit">0</b>/<span id="lcount">5</span> · cần ≥<b id="lneed">3</b></div><div class="chip">⭐ <b id="score">0</b></div></div>
+<div id="bc" class="hud"><div id="prompt"></div><div id="capv" class="chip" style="display:inline-block;margin-bottom:4px">0/10</div><div id="motes"></div></div>
 <div id="br" class="hud">
   <div class="cd" id="cdDash"><span>💨</span><small>Shift</small><div class="fill"></div></div>
   <div class="cd" id="cdPulse"><span>✨</span><small>F</small><div class="fill"></div></div>
 </div>
 <div id="arrow">➤</div>
 <div id="msg" class="hud"></div>
-<div id="windwarn" class="hud chip">🍃 Gió sắp nổi — bám chắc!</div>
+<div id="windwarn" class="hud chip">🍃 ⚠ Gió sắp nổi — bám chắc!</div>
 <div id="help" class="hud">WASD đi · kéo chuột hoặc ←/→ xoay camera · Space nhảy · Shift lướt · E nạp đèn · F tỏa sáng · Esc/P tạm dừng · R chơi lại đêm</div>
 <div id="fps" class="hud chip"></div>
 
 <div id="menu" class="screen show">
   <h1>Đảo Đèn Lồng</h1>
-  <p>Sương đen đã nuốt ánh sáng của ba hòn đảo. Mây — người thắp đèn nhỏ bé — phải nhặt đom đóm và thắp lại từng ngọn đèn lồng.</p>
+  <p>Sương đen đã nuốt ánh sáng của ba hòn đảo. Mây — người thắp đèn nhỏ bé — phải nhặt đom đóm, thắp đèn lồng và giữ chúng cháy tới bình minh — đèn hao dầu mỗi giây, nhớ châm thêm!</p>
   <div class="btns"><button id="bPlay">Bắt đầu (Enter)</button><button id="bMenuSet" class="sec">Cài đặt</button></div>
 </div>
 <div id="intro" class="screen">
@@ -83,6 +83,7 @@
   <h1>Cài đặt</h1>
   <div class="row"><span>Âm lượng</span><input id="sVol" type="range" min="0" max="1" step="0.05"><b id="sVolV"></b></div>
   <div class="row"><span>Độ nhạy chuột</span><input id="sSens" type="range" min="0.2" max="3" step="0.1"><b id="sSensV"></b></div>
+  <div class="row"><span>Bảng màu dễ phân biệt</span><input id="sCb" type="checkbox"></div>
   <div class="btns"><button id="bSetBack">Quay lại</button></div>
 </div>
 <div id="result" class="screen">
